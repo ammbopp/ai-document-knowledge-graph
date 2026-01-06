@@ -34,7 +34,7 @@
              #mynetwork {
                  width: 100%;
                  height: 750px;
-                 background-color: #ffffff;
+                 background-color: #222222;
                  border: 1px solid lightgray;
                  position: relative;
                  float: left;
@@ -42,6 +42,12 @@
 
              
 
+             
+             #config {
+                 float: left;
+                 width: 400px;
+                 height: 600px;
+             }
              
 
              
@@ -57,6 +63,8 @@
         </div>
 
         
+        
+            <div id="config"></div>
         
 
         <script type="text/javascript">
@@ -88,8 +96,8 @@
                   
 
                   // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([{"color": "#97c2fc", "id": "Somchai", "label": "Somchai", "shape": "dot"}, {"color": "#97c2fc", "id": "Dean", "label": "Dean", "shape": "dot"}, {"color": "#97c2fc", "id": "RoboTech Company", "label": "RoboTech Company", "shape": "dot"}, {"color": "#97c2fc", "id": "Robotics", "label": "Robotics", "shape": "dot"}]);
-                  edges = new vis.DataSet([{"arrows": "to", "from": "Somchai", "label": "DEPARTURE", "to": "Dean"}, {"arrows": "to", "from": "RoboTech Company", "label": "AFFILIATION", "to": "Robotics"}]);
+                  nodes = new vis.DataSet([{"color": "#f224ad", "font": {"color": "white"}, "id": "Faculty Of Engineering", "label": "Faculty Of Engineering", "shape": "dot", "size": 15, "title": "Faculty Of Engineering"}, {"color": "#f224ad", "font": {"color": "white"}, "id": "Faculty Of Science", "label": "Faculty Of Science", "shape": "dot", "size": 15, "title": "Faculty Of Science"}, {"color": "#f224ad", "font": {"color": "white"}, "id": "Dean Of The Faculty Of Engineering", "label": "Dean Of The Faculty Of Engineering", "shape": "dot", "size": 15, "title": "Dean Of The Faculty Of Engineering"}, {"color": "#f224ad", "font": {"color": "white"}, "id": "Somchai", "label": "Somchai", "shape": "dot", "size": 15, "title": "Somchai"}, {"color": "#f224ad", "font": {"color": "white"}, "id": "The Robotics Program", "label": "The Robotics Program", "shape": "dot", "size": 15, "title": "The Robotics Program"}, {"color": "#f224ad", "font": {"color": "white"}, "id": "Robotech Company", "label": "Robotech Company", "shape": "dot", "size": 15, "title": "Robotech Company"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "color": "#aaaaaa", "from": "Faculty Of Engineering", "label": "collaborated with", "to": "Faculty Of Science"}, {"arrows": "to", "color": "#aaaaaa", "from": "Dean Of The Faculty Of Engineering", "label": "is", "to": "Somchai"}, {"arrows": "to", "color": "#aaaaaa", "from": "The Robotics Program", "label": "works with", "to": "Robotech Company"}]);
 
                   nodeColors = {};
                   allNodes = nodes.get({ returnType: "Object" });
@@ -102,7 +110,10 @@
 
                   var options = {
     "configure": {
-        "enabled": false
+        "enabled": true,
+        "filter": [
+            "physics"
+        ]
     },
     "edges": {
         "color": {
@@ -133,6 +144,10 @@
                   
 
 
+                  
+                  // if this network requires displaying the configure window,
+                  // put it in its div
+                  options.configure["container"] = document.getElementById("config");
                   
 
                   network = new vis.Network(container, data, options);

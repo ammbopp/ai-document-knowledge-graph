@@ -2,58 +2,43 @@ import spacy
 
 nlp = spacy.load("en_core_web_sm")
 
-
-def get_subject_chunks(doc):
-    """
-    ดึง subject ของประโยคในรูป noun chunk
-    เช่น 'Company A', 'Company B'
-    """
-    subjects = []
-    for chunk in doc.noun_chunks:
-        if chunk.root.dep_ in ("nsubj", "nsubjpass"):
-            subjects.append(chunk.text)
-    return subjects
-
-
 def split_complex_sentence(sentence: str):
-    """
-    แยกประโยคซับซ้อนด้วย dependency parsing
-    พร้อม subject propagation
-    """
     doc = nlp(sentence)
+    
+    # ถ้าประโยคสั้นอยู่แล้ว ไม่ต้องทำอะไร
+    if len(doc) < 15:
+        return [sentence]
 
-    clauses = []
-
-    # 1️⃣ ดึง subject เป็น noun chunk (ถูกต้องกว่า token)
-    subjects = get_subject_chunks(doc)
-    subject_text = " and ".join(subjects)
-
-    # 2️⃣ แยก clause ตาม verb
+    sub_sentences = []
+    
+    # แยกด้วย ; หรือ , ที่ตามด้วยคำเชื่อม (and, but) แบบง่ายๆ
+    current_chunk = []
+    
     for token in doc:
-        if token.pos_ == "VERB":
-            subtree = list(token.subtree)
-            clause_text = " ".join([t.text for t in subtree])
+        current_chunk.append(token.text)
+        
+        # เงื่อนไขการตัดประโยค: เจอ ; หรือ .
+        if token.text in [";", "."]:
+            text = " ".join(current_chunk).strip()
+            if len(text) > 5: # ป้องกันประโยคสั้นเกิน
+                sub_sentences.append(text)
+            current_chunk = []
+            
+        # เงื่อนไขพิเศษ: เจอ , และคำต่อไปเป็น cc (and, but, or)
+        elif token.text == "," and (token.i + 1 < len(doc) and doc[token.i+1].pos_ == "CC"):
+            text = " ".join(current_chunk[:-1]).strip() # ตัด , ออก
+            if len(text) > 10: # ต้องยาวพอสมควรถึงจะตัด
+                sub_sentences.append(text)
+            current_chunk = []
 
-            # 3️⃣ ถ้า clause ไม่มี subject → เติม subject หลัก
-            if subject_text and not any(
-                t.dep_ in ("nsubj", "nsubjpass") for t in subtree
-            ):
-                clause_text = subject_text + " " + clause_text
+    # เก็บตกส่วนที่เหลือ
+    if current_chunk:
+        text = " ".join(current_chunk).strip()
+        if len(text) > 5:
+            sub_sentences.append(text)
 
-            clauses.append(clause_text)
+    # Fallback: ถ้าตัดไม่ได้เลย ให้ส่งคืนประโยคเดิม
+    if not sub_sentences:
+        return [sentence]
 
-    # ถ้ามี year → สร้าง clause ที่ตัดเวลาออกเพิ่ม
-    if any(t.ent_type_ == "DATE" for t in doc):
-        no_time = " ".join(
-            t.text for t in doc if t.ent_type_ != "DATE"
-        )
-        clauses.append(no_time)
-
-    # 4️⃣ กันประโยคซ้ำ
-    clauses = list(dict.fromkeys(clauses))
-
-    # fallback
-    if not clauses:
-        clauses = [sentence]
-
-    return clauses
+    return sub_sentences
