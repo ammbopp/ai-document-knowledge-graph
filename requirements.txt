@@ -1,0 +1,12 @@
+transformers
+torch
+sentencepiece
+spacy
+networkx
+pyvis
+tqdm
+matplotlib
+pandas
+numpy
+scikit-learn
+seaborn
