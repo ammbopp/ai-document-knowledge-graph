@@ -1,0 +1,18 @@
+In 2023, ABC Tech collaborated with SmartFarm Solutions to develop an intelligent
+agricultural analytics platform. The project aimed to improve crop yield prediction
+and resource management for large-scale farms.
+
+The platform uses Machine Learning and IoT sensors to collect real-time data
+from soil, weather stations, and water systems. The collected data is processed
+using cloud-based analytics services.
+
+John Miller was appointed as the project manager and worked closely with
+researchers from GreenField University. The research team focused on building
+predictive models for water usage and disease detection.
+
+The project started in 2023 and was officially deployed in Chonburi, Thailand in 2024.
+Funding for the project was provided by the National Innovation Agency.
+
+After deployment, the system helped farmers reduce water consumption by 20 percent
+and increased crop yield by 15 percent. ABC Tech plans to expand the platform
+to other regions in Southeast Asia.

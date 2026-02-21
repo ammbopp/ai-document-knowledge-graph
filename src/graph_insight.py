@@ -3,44 +3,76 @@ from collections import Counter
 
 def analyze_graph(G: nx.DiGraph):
     """
-    วิเคราะห์ insight จาก Knowledge Graph
+    Thesis-level analysis of Knowledge Graph
     """
     insights = {}
-    # 🔥 สร้างกราฟเฉพาะ relation ที่ไม่ใช่ noise
-    G_filtered = nx.DiGraph()
 
+    # =========================
+    # 1. Filter low-quality edges
+    # =========================
+    Gf = nx.DiGraph()
     for u, v, data in G.edges(data=True):
-        if data.get("quality") != "low":
-            G_filtered.add_edge(u, v, **data)
+        if data.get("quality", "medium") != "low":
+            Gf.add_edge(u, v, **data)
 
-    # 1. หา entity ที่สำคัญที่สุด (hub)
-    degree_centrality = nx.degree_centrality(G_filtered)
-    if degree_centrality:
-        top_node = max(degree_centrality, key=degree_centrality.get)
-        insights["top_node"] = top_node
-        insights["degree_centrality"] = degree_centrality[top_node]
-    else:
-        insights["top_node"] = None
-        insights["degree_centrality"] = 0
+    insights["total_entities"] = Gf.number_of_nodes()
+    insights["total_relations"] = Gf.number_of_edges()
 
-    # 2. ความสัมพันธ์ที่พบบ่อยที่สุด
+    if Gf.number_of_nodes() == 0:
+        return insights
+
+    # =========================
+    # 2. Centrality Analysis
+    # =========================
+    degree_centrality = nx.degree_centrality(Gf)
+    betweenness = nx.betweenness_centrality(Gf)
+
+    top_degree = max(degree_centrality, key=degree_centrality.get)
+    top_bridge = max(betweenness, key=betweenness.get)
+
+    insights["top_entity_by_degree"] = {
+        "entity": top_degree,
+        "score": round(degree_centrality[top_degree], 4)
+    }
+
+    insights["top_entity_by_betweenness"] = {
+        "entity": top_bridge,
+        "score": round(betweenness[top_bridge], 4)
+    }
+
+    # =========================
+    # 3. Relation Distribution
+    # =========================
     relations = []
-    for _, _, data in G.edges(data=True):
-        # 🔥 กรอง relation ที่ quality ต่ำ
-        if data.get("quality") == "low":
-            continue
+    for _, _, data in Gf.edges(data=True):
+        rel = data.get("relation") or data.get("relation_text")
+        if rel:
+            relations.append(rel)
 
-        if "relation_text" in data:
-            relations.append(data["relation_text"])
+    relation_count = Counter(relations)
+    insights["top_relations"] = relation_count.most_common(5)
 
-    if relations:
-        relation_count = Counter(relations)
-        insights["top_relation"] = relation_count.most_common(1)[0]
-    else:
-        insights["top_relation"] = None
+    # =========================
+    # 4. Graph Quality Metrics
+    # =========================
+    undirected = Gf.to_undirected()
 
-    # 3. สถิติโดยรวม
-    insights["total_entities"] = G_filtered.number_of_nodes()
-    insights["total_relations"] = G_filtered.number_of_edges()
+    insights["density"] = round(nx.density(Gf), 4)
+    insights["num_connected_components"] = nx.number_connected_components(undirected)
+
+    # =========================
+    # 5. Community Detection (Theme Discovery)
+    # =========================
+    try:
+        communities = list(nx.community.greedy_modularity_communities(undirected))
+        insights["num_communities"] = len(communities)
+
+        # แสดงเฉพาะ 3 community แรก (เขียนบท 4 ง่าย)
+        insights["sample_communities"] = [
+            list(c)[:5] for c in communities[:3]
+        ]
+    except Exception:
+        insights["num_communities"] = 0
+        insights["sample_communities"] = []
 
     return insights

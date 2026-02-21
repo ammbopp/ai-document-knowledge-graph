@@ -4,41 +4,51 @@ nlp = spacy.load("en_core_web_sm")
 
 def split_complex_sentence(sentence: str):
     doc = nlp(sentence)
-    
-    # ถ้าประโยคสั้นอยู่แล้ว ไม่ต้องทำอะไร
-    if len(doc) < 15:
-        return [sentence]
 
-    sub_sentences = []
-    
-    # แยกด้วย ; หรือ , ที่ตามด้วยคำเชื่อม (and, but) แบบง่ายๆ
-    current_chunk = []
-    
+    # ถ้าสั้นมาก ไม่ต้อง split
+    if len(doc) < 12:
+        return [sentence.strip()]
+
+    clauses = []
+    current_tokens = []
+    has_verb = False
+
+    def flush():
+        nonlocal current_tokens, has_verb
+        if current_tokens and has_verb:
+            text = " ".join(current_tokens).strip()
+            if len(text) > 10:
+                clauses.append(text)
+        current_tokens = []
+        has_verb = False
+
     for token in doc:
-        current_chunk.append(token.text)
-        
-        # เงื่อนไขการตัดประโยค: เจอ ; หรือ .
-        if token.text in [";", "."]:
-            text = " ".join(current_chunk).strip()
-            if len(text) > 5: # ป้องกันประโยคสั้นเกิน
-                sub_sentences.append(text)
-            current_chunk = []
-            
-        # เงื่อนไขพิเศษ: เจอ , และคำต่อไปเป็น cc (and, but, or)
-        elif token.text == "," and (token.i + 1 < len(doc) and doc[token.i+1].pos_ == "CC"):
-            text = " ".join(current_chunk[:-1]).strip() # ตัด , ออก
-            if len(text) > 10: # ต้องยาวพอสมควรถึงจะตัด
-                sub_sentences.append(text)
-            current_chunk = []
+        current_tokens.append(token.text)
 
-    # เก็บตกส่วนที่เหลือ
-    if current_chunk:
-        text = " ".join(current_chunk).strip()
-        if len(text) > 5:
-            sub_sentences.append(text)
+        if token.pos_ == "VERB":
+            has_verb = True
 
-    # Fallback: ถ้าตัดไม่ได้เลย ให้ส่งคืนประโยคเดิม
-    if not sub_sentences:
-        return [sentence]
+        # === จุด split เชิง syntax ===
+        # 1. เจอ coordinating conjunction (and, but, or)
+        if token.dep_ == "cc":
+            flush()
+            continue
 
-    return sub_sentences
+        # 2. เจอ adverbial clause / relative clause
+        if token.dep_ in {"advcl", "relcl"}:
+            flush()
+            continue
+
+        # 3. punctuation ที่เป็น boundary จริง
+        if token.text in {";", "."}:
+            flush()
+            continue
+
+    # เก็บส่วนสุดท้าย
+    flush()
+
+    # Fallback: ถ้าแตกเละ ให้คืนประโยคเดิม
+    if not clauses:
+        return [sentence.strip()]
+
+    return clauses
