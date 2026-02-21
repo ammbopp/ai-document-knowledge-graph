@@ -27,17 +27,16 @@ Task: Extract relationship triplets.
 Format: Subject | Verb Phrase | Object ###
 
 Rules:
-1. The middle part MUST be a verb phrase (e.g., "is the CEO of", "collaborates with").
-2. Do NOT use nouns alone (e.g., "CEO", "Partner") as relations.
-3. Do NOT invent information.
-4. If A works with B on C, split it: "A | works with | B" and "A | works on | C".
-5. Extract multiple relationships if present.
+1. Do NOT use nouns alone (e.g., "CEO", "Partner") as relations.
+2. Do NOT invent information.
+3. If A works with B on C, split it: "A | works with | B" and "A | works on | C".
+4. Extract multiple relationships if present.
 
 CRITICAL RULES:
 1. Each relationship MUST have EXACTLY two pipes (|). 
 2. If there are multiple relationships, separate them completely with " ### ". 
 3. DO NOT chain relationships together. Create a new triplet for each fact.
-4. The middle part MUST be a verb phrase (e.g., "uses", "developed", "worked with").
+4. The middle part MUST be a verb phrase (e.g., "uses", "developed", "worked with") and MUST NOT be a noun alone (e.g., "CEO", "Partner", "Platform").
 
 Examples:
 Input: John Smith is the CEO of Company A.
@@ -108,25 +107,6 @@ def is_hallucination(head, tail, original_text):
     if head_clean not in text_lower and head_clean.split()[0] not in text_lower: return True 
     if tail_clean not in text_lower and tail_clean.split()[0] not in text_lower: return True 
     return False
-
-""" def parse_triples(text):
-    triples = []
-    text = text.replace("###", "\n")
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
-
-    for line in lines:
-        parts = [p.strip() for p in line.split("|") if p.strip()]
-        
-        # Case Normal
-        if len(parts) == 3:
-            triples.append((parts[0], parts[1], parts[2]))
-            
-        # Case Chained (A | rel | B | rel | C)
-        elif len(parts) == 5: 
-            triples.append((parts[0], parts[1], parts[2]))
-            triples.append((parts[2], parts[3], parts[4]))
-            
-    return triples """
 
 def parse_triples(text):
     triples = []

@@ -66,7 +66,35 @@ usable_relations = [
     if r.get("quality", "medium") != "low"
 ]
 
+# for r in usable_relations:
+#     print(f"{r['head']} -> {r['relation']} -> {r['tail']}")
+
+# =========================
+# 5.5 Entity Resolution (ยุบรวม Node ที่ซ้ำซ้อน)
+# =========================
+print("\n=== RESOLVING ENTITIES (Similarity Threshold: 0.85) ===")
+resolver = EntityResolver(threshold=0.85)
+resolved_relations = []
+seen_edges = set()
+
 for r in usable_relations:
+    # แปลงชื่อ Head และ Tail ด้วย AI
+    resolved_head = resolver.resolve(r["head"])
+    resolved_tail = resolver.resolve(r["tail"])
+    
+    # พอยุบรวมคำแล้ว อาจจะเกิด Edge ซ้ำได้ เลยต้องกรองซ้ำอีกรอบ
+    edge_key = (resolved_head.lower(), r["relation"].lower(), resolved_tail.lower())
+    if edge_key not in seen_edges:
+        seen_edges.add(edge_key)
+        
+        # สร้าง Relation ใหม่ที่อัปเดตชื่อ Entity แล้ว
+        new_r = r.copy()
+        new_r["head"] = resolved_head
+        new_r["tail"] = resolved_tail
+        resolved_relations.append(new_r)
+
+print("\n=== FINAL RELATIONS (AFTER RESOLUTION) ===")
+for r in resolved_relations:
     print(f"{r['head']} -> {r['relation']} -> {r['tail']}")
 
 # =========================
@@ -75,7 +103,7 @@ for r in usable_relations:
 # Use filename as main topic
 topic_name = DATA_PATH.stem.replace("_", " ").title()
 
-G = build_graph(usable_relations, root_name=topic_name)
+G = build_graph(resolved_relations, root_name=topic_name)
 
 print(f"\n🧠 Knowledge Graph constructed (Mind Map Style)")
 print(f"   • Root Node: {topic_name}")
