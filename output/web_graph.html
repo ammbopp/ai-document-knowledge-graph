@@ -969,15 +969,15 @@ var tomSelect=function(e,t){return new TomSelect(e,t)}
                             >
                                 <option selected>Select a Node by ID</option>
                                 
-                                    <option value="Sample 01">Sample 01</option>
-                                
-                                    <option value="Alice Johnson">Alice Johnson</option>
-                                
                                     <option value="TechCorp">TechCorp</option>
                                 
                                     <option value="InnovateX">InnovateX</option>
                                 
+                                    <option value="AI platform">AI platform</option>
+                                
                                     <option value="DataLab">DataLab</option>
+                                
+                                    <option value="cloud infrastructure">cloud infrastructure</option>
                                 
                             </select>
                         </div>
@@ -1031,8 +1031,8 @@ var tomSelect=function(e,t){return new TomSelect(e,t)}
                   
 
                   // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([{"borderWidth": 3, "borderWidthSelected": 4, "color": "#ef4444", "font": {"color": "white"}, "id": "Sample 01", "label": "Sample 01", "shape": "dot", "size": 46, "title": "\u003cb\u003eSample 01\u003c/b\u003e\u003cbr\u003eType: Topic"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "Alice Johnson", "label": "Alice Johnson", "shape": "dot", "size": 21, "title": "\u003cb\u003eAlice Johnson\u003c/b\u003e\u003cbr\u003eType: Entity"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "TechCorp", "label": "TechCorp", "shape": "dot", "size": 18, "title": "\u003cb\u003eTechCorp\u003c/b\u003e\u003cbr\u003eType: Entity"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "InnovateX", "label": "InnovateX", "shape": "dot", "size": 18, "title": "\u003cb\u003eInnovateX\u003c/b\u003e\u003cbr\u003eType: Entity"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "DataLab", "label": "DataLab", "shape": "dot", "size": 21, "title": "\u003cb\u003eDataLab\u003c/b\u003e\u003cbr\u003eType: Entity"}]);
-                  edges = new vis.DataSet([{"arrows": "to", "color": "#ef4444", "dashes": true, "from": "Sample 01", "label": "includes", "title": "(Implicit connection to main topic)", "to": "Alice Johnson", "width": 1}, {"arrows": "to", "color": "#ef4444", "dashes": true, "from": "Sample 01", "label": "includes", "title": "(Implicit connection to main topic)", "to": "DataLab", "width": 1}, {"arrows": "to", "color": "#cbd5f5", "dashes": false, "from": "Alice Johnson", "label": "is_the_cto_of", "title": "Alice Johnson is the CTO of TechCorp.", "to": "TechCorp", "width": 2}, {"arrows": "to", "color": "#cbd5f5", "dashes": false, "from": "InnovateX", "label": "collaborates_with", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "DataLab", "width": 2}]);
+                  nodes = new vis.DataSet([{"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "TechCorp", "label": "TechCorp", "shape": "dot", "size": 21, "title": "\u003cb\u003eTechCorp\u003c/b\u003e\u003cbr\u003eType: Entity"}, {"borderWidth": 3, "borderWidthSelected": 4, "color": "#ef4444", "font": {"color": "white"}, "id": "InnovateX", "label": "InnovateX", "shape": "dot", "size": 49, "title": "\u003cb\u003eInnovateX\u003c/b\u003e\u003cbr\u003eType: Topic"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "AI platform", "label": "AI platform", "shape": "dot", "size": 18, "title": "\u003cb\u003eAI platform\u003c/b\u003e\u003cbr\u003eType: Entity"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "DataLab", "label": "DataLab", "shape": "dot", "size": 18, "title": "\u003cb\u003eDataLab\u003c/b\u003e\u003cbr\u003eType: Entity"}, {"borderWidth": 1, "borderWidthSelected": 4, "color": "#94a3b8", "font": {"color": "white"}, "id": "cloud infrastructure", "label": "cloud infrastructure", "shape": "dot", "size": 18, "title": "\u003cb\u003ecloud infrastructure\u003c/b\u003e\u003cbr\u003eType: Entity"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "color": "#cbd5f5", "dashes": false, "from": "TechCorp", "label": "partnered_with", "title": "TechCorp partnered with InnovateX to build an AI platform in 2023.", "to": "InnovateX", "width": 2}, {"arrows": "to", "color": "#cbd5f5", "dashes": false, "from": "TechCorp", "label": "built", "title": "TechCorp partnered with InnovateX to build an AI platform in 2023.", "to": "AI platform", "width": 2}, {"arrows": "to", "color": "#cbd5f5", "dashes": false, "from": "InnovateX", "label": "collaborates_with", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "DataLab", "width": 2}, {"arrows": "to", "color": "#cbd5f5", "dashes": false, "from": "InnovateX", "label": "collaborates", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "cloud infrastructure", "width": 2}]);
 
                   nodeColors = {};
                   allNodes = nodes.get({ returnType: "Object" });

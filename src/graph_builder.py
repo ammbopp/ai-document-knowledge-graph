@@ -16,7 +16,7 @@ def normalize_relation(rel: str) -> str:
 # =========================
 # Graph Construction (Mind Map Logic)
 # =========================
-def build_graph(relations, root_name="Main Topic"):
+# def build_graph(relations, root_name="Main Topic"):
     """
     Build ontology-aware knowledge graph and force connectivity (Mind Map style)
     """
@@ -85,6 +85,84 @@ def build_graph(relations, root_name="Main Topic"):
             relation="includes", 
             count=1,
             sentences=["(Implicit connection to main topic)"],
+            confidence=1.0,
+            type="virtual" 
+        )
+
+    return G
+
+def build_graph(relations, root_name=None):
+    """
+    Build ontology-aware knowledge graph and dynamically find the Main Entity
+    """
+    G = nx.DiGraph()
+
+    # 1. สร้างกราฟจากความสัมพันธ์ทั้งหมดก่อน (ยังไม่กำหนดศูนย์กลาง)
+    for r in relations:
+        head = normalize_node(r["head"])
+        tail = normalize_node(r["tail"])
+        relation = normalize_relation(
+            r.get("relation", r.get("relation_text", "related_to"))
+        )
+
+        # ---- เพิ่ม Node ----
+        if not G.has_node(head):
+            G.add_node(head, type=r.get("head_type", "Entity"), confidence=r.get("confidence", 1.0))
+        
+        if not G.has_node(tail):
+            G.add_node(tail, type=r.get("tail_type", "Entity"), confidence=r.get("confidence", 1.0))
+
+        # ---- เพิ่ม/รวม Edge ----
+        if G.has_edge(head, tail):
+            G[head][tail]["count"] += 1
+            if "sentences" not in G[head][tail]:
+                G[head][tail]["sentences"] = []
+            G[head][tail]["sentences"].append(r.get("source_sentence", ""))
+        else:
+            G.add_edge(
+                head,
+                tail,
+                relation=relation,
+                count=1,
+                sentences=[r.get("source_sentence", "")],
+                confidence=r.get("confidence", 1.0)
+            )
+
+    if G.number_of_nodes() == 0:
+        return G
+
+    # 2. ค้นหา "ตัวเอก" (Main Entity) โดยดูจาก Node ที่มีเส้นเชื่อมเยอะที่สุด (Degree)
+    degrees = dict(G.degree())
+    main_entity = max(degrees, key=degrees.get)
+
+    print(f"🌟 AI Identified Main Entity: {main_entity}")
+
+    # อัปเกรดให้ Main Entity กลายเป็นจุดศูนย์กลาง (Topic/Hub)
+    G.nodes[main_entity]["type"] = "Topic"
+    G.nodes[main_entity]["group"] = "Hub"
+
+    # 3. จับกลุ่มที่ลอยเคว้ง (Disconnected Clusters) มาเชื่อมกับ Main Entity
+    UG = G.to_undirected()
+    components = list(nx.connected_components(UG))
+    
+    for component in components:
+        # ถ้ากลุ่มนี้มีตัวเอกอยู่แล้ว ให้ข้ามไป
+        if main_entity in component:
+            continue
+        
+        subgraph = G.subgraph(list(component))
+        # หาตัวแทนของกลุ่มย่อยนั้น (ตัวที่มีเส้นเชื่อมเยอะสุดในกลุ่ม)
+        sorted_nodes = sorted(subgraph.degree, key=lambda x: x[1], reverse=True)
+        if not sorted_nodes: continue
+        representative_node = sorted_nodes[0][0] 
+
+        # โยงตัวแทนกลุ่มย่อย เข้าหา Main Entity
+        G.add_edge(
+            main_entity,
+            representative_node,
+            relation="related_to",  # ใช้คำว่า related_to แทน includes จะดูเป็นธรรมชาติกว่า
+            count=1,
+            sentences=["(Implicit connection to main entity)"],
             confidence=1.0,
             type="virtual" 
         )

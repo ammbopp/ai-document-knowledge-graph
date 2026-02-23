@@ -6,15 +6,22 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 # =========================
 # 1. Model Setup (Direct Loading)
 # =========================
-print("⏳ Loading Model (Flan-T5-Large)...")
+print("⏳ Loading Model (Flan-T5-XL)...")
 try:
-    # โหลดโมเดลตรงๆ เพื่อความเสถียร (เลิกใช้ Pipeline)
-    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
-    model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
+    model_name = "google/flan-t5-xl"
+    
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        low_cpu_mem_usage=True
+    )
     print("✅ Model loaded successfully!")
 except Exception as e:
     print(f"❌ Model Load Error: {e}")
-    print("💡 Suggestion: Run 'pip install sentencepiece protobuf'")
+    print("💡 Suggestion: Run 'pip install sentencepiece protobuf accelerate'")
     raise e
 
 nlp = spacy.load("en_core_web_sm")
@@ -22,80 +29,126 @@ nlp = spacy.load("en_core_web_sm")
 # =========================
 # 2. Prompt Engineering
 # =========================
-PROMPT = """
-Task: Extract relationship triplets.
-Format: Subject | Verb Phrase | Object ###
+# PROMPT = """
+# Task: Extract clear and concise relationship triplets from the text.
+# Format: Subject | Verb Phrase | Object ###
 
-Rules:
-1. Do NOT use nouns alone (e.g., "CEO", "Partner") as relations.
-2. Do NOT invent information.
-3. If A works with B on C, split it: "A | works with | B" and "A | works on | C".
-4. Extract multiple relationships if present.
+# Rules:
+# 1. Do NOT use nouns alone (e.g., "CEO", "Partner") as relations.
+# 2. Do NOT invent information.
+# 3. If A works with B on C, split it: "A | works with | B" and "A | works on | C".
+# 4. Extract multiple relationships if present.
+# 5. Use exact verb phrases from the original text. Do NOT change verbs into nouns (e.g., use "partnered with" instead of "Partner").
+
+# CRITICAL RULES:
+# 1. Each relationship MUST have EXACTLY two pipes (|). 
+# 2. If there are multiple relationships, separate them completely with " ### ". 
+# 3. DO NOT chain relationships together. Create a new triplet for each fact.
+# 4. The middle part MUST be a verb phrase (e.g., "uses", "developed", "worked with") and MUST NOT be a noun alone (e.g., "CEO", "Partner", "Platform").
+
+# Examples:
+# Input: John Smith is the CEO of Company A.
+# Output: John Smith | is the CEO of | Company A ###
+
+# Input: TechCorp partnered with InnovateX to build an AI platform in 2023.
+# Output: TechCorp | partnered with | InnovateX ### TechCorp | built | AI platform ###
+
+# Input: Company A collaborated with Company B to develop Project X.
+# Output: Company A | collaborated with | Company B ### Company A | developed | Project X ###
+
+# Input: Company B works with Company C on Project Y.
+# Output: Company B | works with | Company C ### Company B | works on | Project Y ###
+
+# Input: Dr. Somchai is the Dean of the Faculty of Engineering.
+# Output: Dr. Somchai | is the Dean of | Faculty of Engineering ###
+
+# Input: The robotics program works with RoboTech Company for internships.
+# Output: The robotics program | works with | RoboTech Company ###
+
+# Input: Funding for the project was provided by the National Innovation Agency.
+# Output: The project | was funded by | National Innovation Agency ###
+
+# Input: John Miller was appointed as the project manager and worked with GreenField University.
+# Output: John Miller | was appointed as | project manager ### John Miller | worked with | GreenField University ###
+
+# Input: {}
+# Output:
+# """
+PROMPT = """
+Task: Extract clear and concise relationship triplets from the text.
 
 CRITICAL RULES:
-1. Each relationship MUST have EXACTLY two pipes (|). 
-2. If there are multiple relationships, separate them completely with " ### ". 
-3. DO NOT chain relationships together. Create a new triplet for each fact.
-4. The middle part MUST be a verb phrase (e.g., "uses", "developed", "worked with") and MUST NOT be a noun alone (e.g., "CEO", "Partner", "Platform").
+1. Output MUST strictly follow this pattern: Subject | Verb Phrase | Object ###
+2. You MUST use EXACTLY TWO pipes (|) per relationship. Never combine the verb and the object.
+3. Keep [Entity 2] short and precise (1-5 words). Do NOT copy long descriptive phrases.
+4. Extract the CORE action. Ignore speech tags like "said that".
+5. Do not use generic placeholder words like "Subject" or "Object" in your output. Use the actual names from the text.
+6. Do NOT use brackets, quotes, or any special punctuation around the words.
 
 Examples:
-Input: John Smith is the CEO of Company A.
-Output: John Smith | is the CEO of | Company A ###
-
-Input: Company A collaborated with Company B to develop Project X.
-Output: Company A | collaborated with | Company B ### Company A | developed | Project X ###
-
-Input: Company B works with Company C on Project Y.
-Output: Company B | works with | Company C ### Company B | works on | Project Y ###
-
-Input: Dr. Somchai is the Dean of the Faculty of Engineering.
-Output: Dr. Somchai | is the Dean of | Faculty of Engineering ###
-
-Input: The robotics program works with RoboTech Company for internships.
-Output: The robotics program | works with | RoboTech Company ###
-
-Input: Funding for the project was provided by the National Innovation Agency.
-Output: The project | was funded by | National Innovation Agency ###
-
 Input: John Miller was appointed as the project manager and worked with GreenField University.
 Output: John Miller | was appointed as | project manager ### John Miller | worked with | GreenField University ###
+
+Input: TechCorp partnered with InnovateX to build an AI platform in 2023.
+Output: TechCorp | partnered with | InnovateX ### TechCorp | built | AI platform ###
+
+Input: US President Donald Trump said on Friday that he will impose global tariffs of 15%.
+Output: Donald Trump | will impose | global tariffs ### 
+
+Input: That law allows these new tariffs to stay in place before the administration must seek congressional approval.
+Output: law | allows | new tariffs ### administration | must seek | congressional approval ###
+
+Input: Major studios like Disney quickly accused ByteDance of copyright infringement.
+Output: Disney | accused | ByteDance ### Disney | accused of | copyright infringement ###
+
+Input: Seedance 2.0 can generate cinema-quality video, complete with sound effects and dialogue.
+Output: Seedance 2.0 | can generate | cinema-quality video ### Seedance 2.0 | complete with | sound effects ###
 
 Input: {}
 Output:
 """
-
 # =========================
 # 3. Helper Function (คุยกับ AI)
 # =========================
 def ask_llm(text):
-    """
-    ฟังก์ชันส่งข้อความหา AI โดยตรง (แทน extractor)
-    """
     input_text = PROMPT.format(text)
-    inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
+    inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
     
-    # Generate (Deterministic = ไม่สุ่ม)
-    outputs = model.generate(
-        **inputs, 
-        max_length=128, 
-        temperature=0.0, 
-        do_sample=False
-    )
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs, 
+            max_new_tokens=50, 
+            num_beams=1, # สำคัญ: ห้ามใช้ beam search กับ XL บนเครื่องส่วนตัว เพราะจะช้ามาก
+            do_sample=False
+        )
+    
+    # เคลียร์แรมหลังใช้งานเสร็จ (ป้องกันอาการค้าง)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        
+    result = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # ล้างขยะที่ AI อาจจะแอบใส่มา
+    result = result.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+    return result
 
 # =========================
 # 4. Filters & Logic
 # =========================
 FORBIDDEN_RELATIONS = {
     "ceo", "founder", "manager", "president", "director", "head", 
-    "owner", "partner", "member", "company", "project"
+    "owner", "partner", "member", "company", "project",
+    "said", "says", "announced", "stated", "told", "added", "reported", "mentioned"
 }
 
 def is_valid_relation(relation):
     rel_clean = relation.strip().lower()
-    if rel_clean in FORBIDDEN_RELATIONS: return False
-    if relation[0].isupper() and " " not in relation: return False # ชื่อเฉพาะ
+    if any(word in rel_clean.split() for word in FORBIDDEN_RELATIONS): 
+        return False
+        
+    if relation[0].isupper() and " " not in relation: return False
     if len(rel_clean) < 2: return False
+    if len(rel_clean.split()) > 4: return False
+        
     return True
 
 def is_hallucination(head, tail, original_text):
@@ -110,6 +163,8 @@ def is_hallucination(head, tail, original_text):
 
 def parse_triples(text):
     triples = []
+    
+    text = text.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
     # ลบ ### ที่อาจจะอยู่หน้าสุดออกก่อน
     text = text.strip()
     if text.startswith("###"):
@@ -148,6 +203,39 @@ def deduplicate(relations):
             unique.append(r)
     return unique
 
+def is_valid_entity(entity):
+    ent_clean = entity.strip().lower()
+    
+    # ห้ามเป็นตัวเลขล้วน
+    if ent_clean.isdigit(): return False
+    # ห้ามสั้นเกิน 1 ตัวอักษร
+    if len(ent_clean) < 2: return False
+        
+    # 🔥 แบนวัน เวลา และสรรพนาม (Stop words / Pronouns)
+    forbidden_words = {
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "today", "yesterday", "tomorrow",
+        "he", "she", "it", "they", "this", "that", "these", "those", "we", "i", "you"
+    }
+    
+    # ถ้า entity ตรงกับคำต้องห้ามเป๊ะๆ ให้เตะทิ้ง
+    if ent_clean in forbidden_words:
+        return False
+        
+    return True
+
+def is_valid_relation(relation):
+    rel_clean = relation.strip().lower()
+    if rel_clean in FORBIDDEN_RELATIONS: return False
+    if relation[0].isupper() and " " not in relation: return False
+    if len(rel_clean) < 2: return False
+    
+    # 🔥 เพิ่มกฎใหม่: Relation ต้องเป็นกริยาสั้นๆ ห้ามยาวเกิน 4 คำ
+    if len(rel_clean.split()) > 4: 
+        return False
+        
+    return True
+
 # =========================
 # 5. Main Extraction Function
 # =========================
@@ -168,6 +256,7 @@ def extract_relations(sentences):
             triples = parse_triples(output)
 
             for head, rel_text, tail in triples:
+                if not is_valid_entity(head) or not is_valid_entity(tail): continue
                 if not is_valid_relation(rel_text): continue
                 if is_hallucination(head, tail, sent): continue
                 if head.lower() == tail.lower(): continue

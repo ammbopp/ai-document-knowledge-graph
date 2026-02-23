@@ -1,52 +1,75 @@
 import streamlit as st
 import os
 import spacy
+import pandas as pd
 import streamlit.components.v1 as components
 
-# นำเข้าฟังก์ชันจากไฟล์ในโปรเจกต์ของเรา
 from src.relation_extraction_ai import extract_relations
 from src.entity_resolution import EntityResolver
 from src.graph_builder import build_graph, visualize_graph
 from src.graph_insight import analyze_graph
 
-# 1. ตั้งค่าหน้าเว็บ
+# 1. ตั้งค่าหน้าเว็บ (Page Config)
 st.set_page_config(page_title="AI Document Graph", layout="wide", page_icon="🧠")
-st.title("🧠 AI Knowledge Graph Extractor")
-st.markdown("อัปโหลดไฟล์เอกสาร (Text) เพื่อให้ AI วิเคราะห์และสร้าง Mind Map ความสัมพันธ์")
 
-# 2. โหลดโมเดล Entity Resolution (ใช้ Cache จะได้ไม่โหลดซ้ำเวลากดปุ่ม)
+# ==========================================
+# หน้าจอหลัก (Main Content)
+# ==========================================
+st.title("🧠 AI Knowledge Graph Extractor")
+st.markdown("วิเคราะห์สกัดความสัมพันธ์จากข้อความและสร้างเป็น Mind Map แบบ Interactive")
+
+# 2. โหลดโมเดล Entity Resolution
 @st.cache_resource
 def get_resolver():
     return EntityResolver(threshold=0.85)
 
 resolver = get_resolver()
 
-# 3. ส่วนรับไฟล์อัปโหลด
-uploaded_file = st.file_uploader("Upload your .txt file here", type=["txt"])
+# ==========================================
+# 3. ส่วนรับข้อมูล (Input Section) - เลือกได้ 2 โหมด
+# ==========================================
+input_method = st.radio(
+    "👉 เลือกวิธีใส่ข้อมูล (Choose Input Method):",
+    ("📝 วางข้อความ (Paste Text)", "📂 อัปโหลดไฟล์ (Upload .txt File)"),
+    horizontal=True
+)
 
-if uploaded_file is not None:
-    # อ่านข้อความจากไฟล์
-    document_text = uploaded_file.getvalue().decode("utf-8")
-    
-    with st.expander("📄 ดูเนื้อหาไฟล์ต้นฉบับ"):
-        st.text_area("Document Content", document_text, height=200)
+document_text = ""
+download_filename = "knowledge_graph.html"
+
+if input_method == "📂 อัปโหลดไฟล์ (Upload .txt File)":
+    uploaded_file = st.file_uploader("Upload your .txt file here", type=["txt"])
+    if uploaded_file is not None:
+        document_text = uploaded_file.getvalue().decode("utf-8")
+        download_filename = f"{uploaded_file.name.replace('.txt', '')}_graph.html"
+else:
+    pasted_text = st.text_area("Paste your document text here", height=200, placeholder="พิมพ์หรือวางข้อความภาษาอังกฤษที่นี่...")
+    if pasted_text.strip():
+        document_text = pasted_text
+        download_filename = "custom_text_graph.html"
+
+# ==========================================
+# 4. ส่วนวิเคราะห์และสร้างกราฟ
+# ==========================================
+if document_text:
+    with st.expander("📄 ดูเนื้อหาต้นฉบับ (Original Document)"):
+        st.write(document_text)
 
     # ปุ่มกดเริ่มวิเคราะห์
-    if st.button("🚀 Analyze & Generate Graph", type="primary"):
+    if st.button("🚀 Analyze & Generate Graph", type="primary", use_container_width=True):
         
-        # ใช้ st.status เพื่อโชว์สถานะการทำงานทีละสเต็ปให้ดูเท่ๆ
-        with st.status("AI is processing the document...", expanded=True) as status:
+        with st.status("AI is processing the document... Please wait ⏳", expanded=True) as status:
             
-            st.write("✂️ กำลังตัดคำและแบ่งประโยค...")
+            st.write("✂️ 1. กำลังตัดคำและแบ่งประโยค...")
             nlp = spacy.load("en_core_web_sm")
             doc = nlp(document_text)
             sentences = [sent.text.strip() for sent in doc.sents if len(sent.text.strip()) >= 10]
             
-            st.write("🤖 กำลังให้ Flan-T5 สกัดความสัมพันธ์ (Relation Extraction)...")
+            st.write("🤖 2. กำลังให้ LLM สกัดความสัมพันธ์ (Relation Extraction)...")
             relations = extract_relations(sentences)
             usable_relations = [r for r in relations if r.get("quality", "medium") != "low"]
             
-            st.write("🔍 กำลังยุบรวมคำที่ความหมายเหมือนกัน (Entity Resolution)...")
+            st.write("🔍 3. กำลังยุบรวมคำที่ความหมายเหมือนกัน (Entity Resolution)...")
             resolved_relations = []
             seen_edges = set()
             for r in usable_relations:
@@ -60,10 +83,19 @@ if uploaded_file is not None:
                     new_r["head"] = resolved_head
                     new_r["tail"] = resolved_tail
                     resolved_relations.append(new_r)
+
+            print("\n" + "="*50)
+            print("🎯 FINAL RELATIONS (AFTER ALL FILTERS & RESOLUTION)")
+            print("="*50)
+            if resolved_relations:
+                for idx, rel in enumerate(resolved_relations, 1):
+                    print(f"[{idx}] {rel['head']}  ->  {rel['relation']}  ->  {rel['tail']}")
+            else:
+                print("⚠️ No valid relations found after filtering.")
+            print("="*50 + "\n")
                     
-            st.write("🎨 กำลังสร้าง Knowledge Graph...")
-            topic_name = uploaded_file.name.replace(".txt", "").replace("_", " ").title()
-            G = build_graph(resolved_relations, root_name=topic_name)
+            st.write("🎨 4. กำลังวิเคราะห์ศูนย์กลางและสร้าง Knowledge Graph...")
+            G = build_graph(resolved_relations)
             
             output_path = "output/web_graph.html"
             os.makedirs("output", exist_ok=True)
@@ -71,22 +103,54 @@ if uploaded_file is not None:
             
             status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
 
-        # 4. แสดงผลกราฟบนหน้าเว็บ
-        st.subheader("📊 Interactive Knowledge Graph")
-        with open(output_path, "r", encoding="utf-8") as f:
-            html_data = f.read()
+        # ==========================================
+        # แสดงผลลัพธ์แบบแยก Tabs
+        # ==========================================
+        st.markdown("---")
+        tab1, tab2, tab3 = st.tabs(["📊 Knowledge Graph", "📈 Graph Insights", "📝 Extracted Data"])
+        
+        # 🟢 Tab 1: แสดงกราฟ และ ปุ่มดาวน์โหลด
+        with tab1:
+            st.subheader("Interactive Knowledge Graph")
             
-        # ใช้ iframe ในการ render HTML ของ PyVis
-        components.html(html_data, height=825, scrolling=False)
-        
-        # 5. แสดง Insights สถิติของกราฟ
-        st.subheader("📈 Graph Insights")
-        insights = analyze_graph(G)
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Entities", insights.get("total_entities", 0))
-        col2.metric("Total Relations", insights.get("total_relations", 0))
-        col3.metric("Density", insights.get("density", 0))
-        
-        with st.expander("ดูข้อมูลวิเคราะห์เชิงลึก (Deep Insights)"):
-            st.json(insights)
+            with open(output_path, "r", encoding="utf-8") as f:
+                html_data = f.read()
+            
+            st.download_button(
+                label="💾 Download Graph (HTML)",
+                data=html_data,
+                file_name=download_filename,
+                mime="text/html",
+                type="secondary"
+            )
+            
+            components.html(html_data, height=850, scrolling=False)
+
+        # 🟢 Tab 2: แสดงสถิติเชิงลึก
+        with tab2:
+            st.subheader("Graph Analysis & Insights")
+            insights = analyze_graph(G)
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Entities (Nodes)", insights.get("total_entities", 0))
+            col2.metric("Total Relations (Edges)", insights.get("total_relations", 0))
+            col3.metric("Graph Density", insights.get("density", 0))
+            
+            st.markdown("#### 🌟 Top Entities")
+            if "top_entity_by_degree" in insights:
+                st.info(f"**Main Entity (Hub):** {insights['top_entity_by_degree']['entity']} (Score: {insights['top_entity_by_degree']['score']})")
+                
+            with st.expander("ดูข้อมูลวิเคราะห์เชิงลึกแบบ JSON"):
+                st.json(insights)
+
+        # 🟢 Tab 3: แสดงตารางข้อมูลดิบ
+        with tab3:
+            st.subheader("Extracted Relations Table")
+            if resolved_relations:
+                df = pd.DataFrame(resolved_relations)
+                if not df.empty and all(k in df.columns for k in ["head", "relation", "tail", "source_sentence"]):
+                    df_display = df[["head", "relation", "tail", "source_sentence"]]
+                    df_display.columns = ["Subject (Head)", "Relation", "Object (Tail)", "Source Sentence"]
+                    st.dataframe(df_display, use_container_width=True)
+            else:
+                st.warning("No relations were extracted. ลองปรับข้อความให้เป็นประโยคที่สมบูรณ์ขึ้นครับ")
