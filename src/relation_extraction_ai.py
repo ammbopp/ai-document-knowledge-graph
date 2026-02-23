@@ -29,53 +29,10 @@ nlp = spacy.load("en_core_web_sm")
 # =========================
 # 2. Prompt Engineering
 # =========================
-# PROMPT = """
-# Task: Extract clear and concise relationship triplets from the text.
-# Format: Subject | Verb Phrase | Object ###
 
-# Rules:
-# 1. Do NOT use nouns alone (e.g., "CEO", "Partner") as relations.
-# 2. Do NOT invent information.
-# 3. If A works with B on C, split it: "A | works with | B" and "A | works on | C".
-# 4. Extract multiple relationships if present.
-# 5. Use exact verb phrases from the original text. Do NOT change verbs into nouns (e.g., use "partnered with" instead of "Partner").
-
-# CRITICAL RULES:
-# 1. Each relationship MUST have EXACTLY two pipes (|). 
-# 2. If there are multiple relationships, separate them completely with " ### ". 
-# 3. DO NOT chain relationships together. Create a new triplet for each fact.
-# 4. The middle part MUST be a verb phrase (e.g., "uses", "developed", "worked with") and MUST NOT be a noun alone (e.g., "CEO", "Partner", "Platform").
-
-# Examples:
-# Input: John Smith is the CEO of Company A.
-# Output: John Smith | is the CEO of | Company A ###
-
-# Input: TechCorp partnered with InnovateX to build an AI platform in 2023.
-# Output: TechCorp | partnered with | InnovateX ### TechCorp | built | AI platform ###
-
-# Input: Company A collaborated with Company B to develop Project X.
-# Output: Company A | collaborated with | Company B ### Company A | developed | Project X ###
-
-# Input: Company B works with Company C on Project Y.
-# Output: Company B | works with | Company C ### Company B | works on | Project Y ###
-
-# Input: Dr. Somchai is the Dean of the Faculty of Engineering.
-# Output: Dr. Somchai | is the Dean of | Faculty of Engineering ###
-
-# Input: The robotics program works with RoboTech Company for internships.
-# Output: The robotics program | works with | RoboTech Company ###
-
-# Input: Funding for the project was provided by the National Innovation Agency.
-# Output: The project | was funded by | National Innovation Agency ###
-
-# Input: John Miller was appointed as the project manager and worked with GreenField University.
-# Output: John Miller | was appointed as | project manager ### John Miller | worked with | GreenField University ###
-
-# Input: {}
-# Output:
-# """
 PROMPT = """
 Task: Extract clear and concise relationship triplets from the text.
+Format: Entity 1 | Verb Phrase | Entity 2 ###
 
 CRITICAL RULES:
 1. Output MUST strictly follow this pattern: Subject | Verb Phrase | Object ###
@@ -84,6 +41,7 @@ CRITICAL RULES:
 4. Extract the CORE action. Ignore speech tags like "said that".
 5. Do not use generic placeholder words like "Subject" or "Object" in your output. Use the actual names from the text.
 6. Do NOT use brackets, quotes, or any special punctuation around the words.
+7. DO NOT extract years, dates, or times (e.g., 2022, 2025, Monday) as entities. Ignore them completely.
 
 Examples:
 Input: John Miller was appointed as the project manager and worked with GreenField University.
@@ -104,6 +62,12 @@ Output: Disney | accused | ByteDance ### Disney | accused of | copyright infring
 Input: Seedance 2.0 can generate cinema-quality video, complete with sound effects and dialogue.
 Output: Seedance 2.0 | can generate | cinema-quality video ### Seedance 2.0 | complete with | sound effects ###
 
+Input: In 2022, the Facility of Engineering collaborated with the Facility of Science.
+Output: Facility of Engineering | collaborated with | Facility of Science ###
+
+Input: Dr. Somchai is the Dean of the Faculty of Engineering.
+Output: Dr. Somchai | is the Dean of | Faculty of Engineering ###
+
 Input: {}
 Output:
 """
@@ -112,7 +76,7 @@ Output:
 # =========================
 def ask_llm(text):
     input_text = PROMPT.format(text)
-    inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+    inputs = tokenizer(input_text,max_length=1024, return_tensors="pt").to(model.device)
     
     with torch.no_grad():
         outputs = model.generate(

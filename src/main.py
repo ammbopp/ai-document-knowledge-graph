@@ -8,7 +8,7 @@ from .graph_builder import build_graph, visualize_graph
 from .dependency_splitter import split_complex_sentence
 from .entity_resolution import EntityResolver
 
-DATA_PATH = pathlib.Path("data/sample_03.txt")
+DATA_PATH = pathlib.Path("data/sample_01.txt")
 MIN_SENTENCE_LENGTH = 10
 
 nlp = spacy.load("en_core_web_sm")
@@ -72,8 +72,8 @@ usable_relations = [
 # =========================
 # 5.5 Entity Resolution (ยุบรวม Node ที่ซ้ำซ้อน)
 # =========================
-print("\n=== RESOLVING ENTITIES (Similarity Threshold: 0.85) ===")
-resolver = EntityResolver(threshold=0.85)
+print("\n=== RESOLVING ENTITIES (Similarity Threshold: 0.95) ===")
+resolver = EntityResolver(threshold=0.95)
 resolved_relations = []
 seen_edges = set()
 

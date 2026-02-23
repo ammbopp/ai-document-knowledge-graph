@@ -124,7 +124,7 @@ if document_text:
                 type="secondary"
             )
             
-            components.html(html_data, height=850, scrolling=False)
+            components.html(html_data, height=600, scrolling=False)
 
         # 🟢 Tab 2: แสดงสถิติเชิงลึก
         with tab2:
