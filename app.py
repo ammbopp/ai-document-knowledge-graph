@@ -58,42 +58,64 @@ if document_text:
     # ปุ่มกดเริ่มวิเคราะห์
     if st.button("🚀 Analyze & Generate Graph", type="primary", use_container_width=True):
         
+        # สร้าง Progress Bar ไว้ด้านบน
+        progress_bar = st.progress(0, text="เตรียมการวิเคราะห์...")
+        
         with st.status("AI is processing the document... Please wait ⏳", expanded=True) as status:
             
+            # --- ขั้นตอนที่ 1 (0% -> 5%) ---
             st.write("✂️ 1. กำลังตัดคำและแบ่งประโยค...")
             nlp = spacy.load("en_core_web_sm")
             doc = nlp(document_text)
             sentences = [sent.text.strip() for sent in doc.sents if len(sent.text.strip()) >= 10]
             
+            progress_bar.progress(5, text="แบ่งประโยคเสร็จสิ้น (5%)")
+            
+            # --- ขั้นตอนที่ 2 (5% -> 80%) ---
             st.write("🤖 2. กำลังให้ LLM สกัดความสัมพันธ์ (Relation Extraction)...")
-            relations = extract_relations(sentences)
+            relations = []
+            total_sentences = len(sentences)
+            
+            if total_sentences > 0:
+                for i, sent in enumerate(sentences):
+                    # ทยอยส่งไปสกัดความสัมพันธ์ทีละ 1 ประโยค (เพื่อให้แถบโหลดขยับได้)
+                    extracted = extract_relations([sent])
+                    relations.extend(extracted)
+                    
+                    # คำนวณ % ปัจจุบัน (เริ่มที่ 5% และบวกเพิ่มสูงสุด 75%)
+                    current_percent = 5 + int(75 * ((i + 1) / total_sentences))
+                    progress_bar.progress(current_percent, text=f"กำลังสกัดความสัมพันธ์... ({i+1}/{total_sentences}) - {current_percent}%")
+            else:
+                progress_bar.progress(80, text="ข้ามการสกัดความสัมพันธ์ (80%)")
+
             usable_relations = [r for r in relations if r.get("quality", "medium") != "low"]
             
+            # --- ขั้นตอนที่ 3 (80% -> 95%) ---
             st.write("🔍 3. กำลังยุบรวมคำที่ความหมายเหมือนกัน (Entity Resolution)...")
             resolved_relations = []
             seen_edges = set()
-            for r in usable_relations:
-                resolved_head = resolver.resolve(r["head"])
-                resolved_tail = resolver.resolve(r["tail"])
-                edge_key = (resolved_head.lower(), r["relation"].lower(), resolved_tail.lower())
-                
-                if edge_key not in seen_edges:
-                    seen_edges.add(edge_key)
-                    new_r = r.copy()
-                    new_r["head"] = resolved_head
-                    new_r["tail"] = resolved_tail
-                    resolved_relations.append(new_r)
-
-            print("\n" + "="*50)
-            print("🎯 FINAL RELATIONS (AFTER ALL FILTERS & RESOLUTION)")
-            print("="*50)
-            if resolved_relations:
-                for idx, rel in enumerate(resolved_relations, 1):
-                    print(f"[{idx}] {rel['head']}  ->  {rel['relation']}  ->  {rel['tail']}")
-            else:
-                print("⚠️ No valid relations found after filtering.")
-            print("="*50 + "\n")
+            total_usable = len(usable_relations)
+            
+            if total_usable > 0:
+                for i, r in enumerate(usable_relations):
+                    resolved_head = resolver.resolve(r["head"])
+                    resolved_tail = resolver.resolve(r["tail"])
+                    edge_key = (resolved_head.lower(), r["relation"].lower(), resolved_tail.lower())
                     
+                    if edge_key not in seen_edges:
+                        seen_edges.add(edge_key)
+                        new_r = r.copy()
+                        new_r["head"] = resolved_head
+                        new_r["tail"] = resolved_tail
+                        resolved_relations.append(new_r)
+                    
+                    # คำนวณ % ปัจจุบัน (เริ่มที่ 80% และบวกเพิ่มสูงสุด 15%)
+                    current_percent = 80 + int(15 * ((i + 1) / total_usable))
+                    progress_bar.progress(current_percent, text=f"กำลังคลีนข้อมูล... ({i+1}/{total_usable}) - {current_percent}%")
+            else:
+                progress_bar.progress(95, text="ข้ามการคลีนข้อมูล (95%)")
+
+            # --- ขั้นตอนที่ 4 (95% -> 100%) ---
             st.write("🎨 4. กำลังวิเคราะห์ศูนย์กลางและสร้าง Knowledge Graph...")
             G = build_graph(resolved_relations)
             
@@ -101,6 +123,7 @@ if document_text:
             os.makedirs("output", exist_ok=True)
             visualize_graph(G, output_file=output_path)
             
+            progress_bar.progress(100, text="✅ วิเคราะห์ข้อมูลเสร็จสิ้นสมบูรณ์ (100%)")
             status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
 
         # ==========================================
