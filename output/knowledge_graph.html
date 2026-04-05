@@ -262,50 +262,76 @@ function highlightFilter(filter) {
         </style>
     
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        :root {
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --box-bg: #f8fafc;
+            --hover-bg: #e0f2fe;
+            --tag-bg: #e0f2fe;
+            --tag-text: #0284c7;
+            --btn-bg: white;
+            --btn-text: #475569;
+        }
         
-        /* Side Panel (สว่าง) */
+        body.dark-mode {
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --text-main: #e0e0e0;
+            --text-muted: #9e9e9e;
+            --border-color: #333333;
+            --box-bg: #2d2d2d;
+            --hover-bg: #37474f;
+            --tag-bg: #004d40;
+            --tag-text: #00e676;
+            --btn-bg: #2d2d2d;
+            --btn-text: #e0e0e0;
+        }
+
+        body, html { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; transition: background-color 0.4s; }
+        
         #side-panel {
             position: fixed; top: 0; right: -400px; width: 360px; height: 100vh;
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--panel-bg);
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border-left: 1px solid rgba(0, 0, 0, 0.05);
-            color: #1e293b;
-            box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 1px solid var(--border-color);
+            color: var(--text-main);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s, color 0.4s;
             z-index: 9999; padding: 30px 25px; box-sizing: border-box; overflow-y: auto;
         }
         #side-panel.open { right: 0; }
         
-        .panel-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px; }
-        .panel-header h2 { margin: 0; font-size: 22px; color: #0f172a; font-weight: 700; }
-        .close-btn { background: #f1f5f9; border: none; color: #64748b; font-size: 20px; cursor: pointer; border-radius: 8px; width: 32px; height: 32px; transition: 0.2s; }
+        .panel-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; transition: border-color 0.4s; }
+        .panel-header h2 { margin: 0; font-size: 22px; color: var(--text-main); font-weight: 700; transition: color 0.4s; }
+        .close-btn { background: var(--box-bg); border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; border-radius: 8px; width: 32px; height: 32px; transition: 0.2s; }
         .close-btn:hover { background: #ef4444; color: white; }
         
-        .info-tag { display: inline-block; padding: 6px 14px; border-radius: 20px; background: #e0f2fe; color: #0284c7; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
+        .info-tag { display: inline-block; padding: 6px 14px; border-radius: 20px; background: var(--tag-bg); color: var(--tag-text); font-size: 13px; font-weight: 600; margin-bottom: 20px; transition: 0.4s; }
         
         .panel-section { margin-bottom: 25px; }
-        .panel-section h3 { color: #64748b; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
-        .panel-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; font-size: 14px; line-height: 1.6; color: #475569; }
+        .panel-section h3 { color: var(--text-muted); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
+        .panel-box { background: var(--box-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; font-size: 14px; line-height: 1.6; color: var(--text-main); transition: 0.4s; }
         
-        /* ปุ่ม Connection ที่คลิกได้ */
         .connection-list { padding: 0; margin: 0; list-style: none; }
         .connection-item {
-            padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0;
+            padding: 10px 14px; background: var(--box-bg); border: 1px solid var(--border-color);
             margin-bottom: 8px; border-radius: 8px; font-size: 14px; cursor: pointer;
-            transition: all 0.2s; display: flex; align-items: center; color: #334155;
+            transition: all 0.2s; display: flex; align-items: center; color: var(--text-main);
         }
-        .connection-item:hover { background: #e0f2fe; border-color: #bae6fd; transform: translateX(5px); color: #0284c7; }
+        .connection-item:hover { background: var(--hover-bg); border-color: var(--tag-text); transform: translateX(5px); color: var(--tag-text); }
         .connection-item::before { content: "🔗"; margin-right: 8px; font-size: 12px; }
 
-        /* Floating Button (หยุดฟิสิกส์) */
-        #freeze-btn {
+        .action-buttons {
             position: fixed; bottom: 30px; left: 30px; z-index: 1000;
-            background: white; border: 1px solid #e2e8f0; padding: 12px 20px;
-            border-radius: 50px; font-family: inherit; font-weight: 600; color: #475569;
-            cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: 0.2s;
+            display: flex; flex-direction: column; gap: 12px;
         }
-        #freeze-btn:hover { background: #f8fafc; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+        .float-btn {
+            background: var(--btn-bg); border: 1px solid var(--border-color); padding: 12px 20px;
+            border-radius: 50px; font-family: inherit; font-weight: 600; color: var(--btn-text);
+            cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: 0.3s;
+        }
+        .float-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-color: #94a3b8; }
     </style>
     
 </head>
@@ -350,8 +376,8 @@ function highlightFilter(filter) {
                   
 
                   // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([{"borderWidth": 2, "borderWidthSelected": 4, "font": {"color": "#1e293b"}, "group": "Entity", "id": "TechCorp", "label": "TechCorp", "shape": "dot", "size": 25.0, "title": "\u003cb\u003eTechCorp\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 2"}, {"borderWidth": 2, "borderWidthSelected": 4, "font": {"color": "#1e293b"}, "group": "Topic", "id": "InnovateX", "label": "InnovateX", "shape": "dot", "size": 47.5, "title": "\u003cb\u003eInnovateX\u003c/b\u003e\u003cbr\u003eType: Topic\u003cbr\u003eConnections: 3"}, {"borderWidth": 2, "borderWidthSelected": 4, "font": {"color": "#1e293b"}, "group": "Entity", "id": "AI platform", "label": "AI platform", "shape": "dot", "size": 22.5, "title": "\u003cb\u003eAI platform\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}, {"borderWidth": 2, "borderWidthSelected": 4, "font": {"color": "#1e293b"}, "group": "Entity", "id": "DataLab", "label": "DataLab", "shape": "dot", "size": 22.5, "title": "\u003cb\u003eDataLab\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}, {"borderWidth": 2, "borderWidthSelected": 4, "font": {"color": "#1e293b"}, "group": "Entity", "id": "cloud infrastructure", "label": "cloud infrastructure", "shape": "dot", "size": 22.5, "title": "\u003cb\u003ecloud infrastructure\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}]);
-                  edges = new vis.DataSet([{"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 4}, "from": "TechCorp", "label": "partnered_with", "title": "TechCorp partnered with InnovateX to build an AI platform in 2023.", "to": "InnovateX", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 4}, "from": "TechCorp", "label": "built", "title": "TechCorp partnered with InnovateX to build an AI platform in 2023.", "to": "AI platform", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 4}, "from": "InnovateX", "label": "collaborates_with", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "DataLab", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 4}, "from": "InnovateX", "label": "collaborates", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "cloud infrastructure", "width": 2.0}]);
+                  nodes = new vis.DataSet([{"borderWidth": 2, "borderWidthSelected": 6, "color": {"background": "#ef4444", "border": "#dc2626", "highlight": {"background": "#ef4444", "border": "#0f172a"}}, "entity_type": "Topic", "font": {"color": "#1e293b"}, "id": "TechCorp", "label": "TechCorp", "shape": "dot", "size": 47.5, "title": "\u003cb\u003eTechCorp\u003c/b\u003e\u003cbr\u003eType: Topic\u003cbr\u003eConnections: 3"}, {"borderWidth": 2, "borderWidthSelected": 6, "color": {"background": "#94a3b8", "border": "#64748b", "highlight": {"background": "#94a3b8", "border": "#0f172a"}}, "entity_type": "Entity", "font": {"color": "#1e293b"}, "id": "InnovateX", "label": "InnovateX", "shape": "dot", "size": 27.5, "title": "\u003cb\u003eInnovateX\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 3"}, {"borderWidth": 2, "borderWidthSelected": 6, "color": {"background": "#94a3b8", "border": "#64748b", "highlight": {"background": "#94a3b8", "border": "#0f172a"}}, "entity_type": "Entity", "font": {"color": "#1e293b"}, "id": "AI platform", "label": "AI platform", "shape": "dot", "size": 22.5, "title": "\u003cb\u003eAI platform\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}, {"borderWidth": 2, "borderWidthSelected": 6, "color": {"background": "#94a3b8", "border": "#64748b", "highlight": {"background": "#94a3b8", "border": "#0f172a"}}, "entity_type": "Entity", "font": {"color": "#1e293b"}, "id": "Alice Johnson", "label": "Alice Johnson", "shape": "dot", "size": 22.5, "title": "\u003cb\u003eAlice Johnson\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}, {"borderWidth": 2, "borderWidthSelected": 6, "color": {"background": "#94a3b8", "border": "#64748b", "highlight": {"background": "#94a3b8", "border": "#0f172a"}}, "entity_type": "Entity", "font": {"color": "#1e293b"}, "id": "DataLab", "label": "DataLab", "shape": "dot", "size": 22.5, "title": "\u003cb\u003eDataLab\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}, {"borderWidth": 2, "borderWidthSelected": 6, "color": {"background": "#94a3b8", "border": "#64748b", "highlight": {"background": "#94a3b8", "border": "#0f172a"}}, "entity_type": "Entity", "font": {"color": "#1e293b"}, "id": "cloud infrastructure", "label": "cloud infrastructure", "shape": "dot", "size": 22.5, "title": "\u003cb\u003ecloud infrastructure\u003c/b\u003e\u003cbr\u003eType: Entity\u003cbr\u003eConnections: 1"}]);
+                  edges = new vis.DataSet([{"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 3}, "from": "TechCorp", "label": "partnered_with", "title": "TechCorp partnered with InnovateX to build an AI platform in 2023.", "to": "InnovateX", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 3}, "from": "TechCorp", "label": "built", "title": "TechCorp partnered with InnovateX to build an AI platform in 2023.", "to": "AI platform", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 3}, "from": "InnovateX", "label": "collaborates_with", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "DataLab", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 3}, "from": "InnovateX", "label": "collaborates_with", "title": "InnovateX collaborates with DataLab on cloud infrastructure.", "to": "cloud infrastructure", "width": 2.0}, {"arrows": {"to": {"enabled": true, "scaleFactor": 0.5}}, "color": {"color": "#cbd5e1", "highlight": "#94a3b8"}, "dashes": false, "font": {"align": "middle", "color": "#334155", "face": "Segoe UI", "size": 12, "strokeColor": "#f8fafc", "strokeWidth": 3}, "from": "Alice Johnson", "label": "is_the_cto_of", "title": "Alice Johnson is the CTO of TechCorp.", "to": "TechCorp", "width": 2.0}]);
 
                   nodeColors = {};
                   allNodes = nodes.get({ returnType: "Object" });
@@ -386,57 +412,154 @@ function highlightFilter(filter) {
               drawGraph();
         </script>
     
-    <button id="freeze-btn" onclick="togglePhysics()">❄️ Freeze Graph</button>
-
-    <div id="side-panel">
-        <div class="panel-header">
-            <h2 id="panel-title">Node</h2>
-            <button class="close-btn" onclick="closePanel()">&times;</button>
-        </div>
-        <div id="panel-badge"></div>
-        
-        <div class="panel-section">
-            <h3>Overview</h3>
-            <div class="panel-box" id="panel-overview"></div>
-        </div>
-        
-        <div class="panel-section">
-            <h3>Connected Entities</h3>
-            <ul class="connection-list" id="panel-connections"></ul>
-        </div>
-    </div>
-
     <script type="text/javascript">
+        // Inject Buttons
+        const buttonsHTML = `
+        <div class="action-buttons">
+            <button id="theme-btn" class="float-btn" onclick="toggleTheme()">🌙 Dark Mode</button>
+            <button id="freeze-btn" class="float-btn" onclick="togglePhysics()">❄️ Freeze Graph</button>
+        </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', buttonsHTML);
+        
+        // Inject Side Panel
+        const panelHTML = `
+        <div id="side-panel">
+            <div class="panel-header">
+                <h2 id="panel-title">Node</h2>
+                <button class="close-btn" onclick="closePanel()">&times;</button>
+            </div>
+            <div id="panel-badge"></div>
+            <div class="panel-section">
+                <h3>Overview</h3>
+                <div class="panel-box" id="panel-overview"></div>
+            </div>
+            <div class="panel-section">
+                <h3>Connected Entities</h3>
+                <ul class="connection-list" id="panel-connections"></ul>
+            </div>
+        </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', panelHTML);
+
+        // ==========================================
+        // Theme Logic
+        // ==========================================
+        const THEMES = {
+            light: {
+                bg: "#f8fafc",
+                nodes: {
+                    "Person": { background: "#3b82f6", border: "#2563eb" },
+                    "Organization": { background: "#10b981", border: "#059669" },
+                    "Location": { background: "#f59e0b", border: "#d97706" },
+                    "Work": { background: "#8b5cf6", border: "#7c3aed" },
+                    "Entity": { background: "#94a3b8", border: "#64748b" },
+                    "Topic": { background: "#ef4444", border: "#dc2626" }
+                },
+                edgeReal: "#cbd5e1",
+                edgeVirtual: "#fca5a5"
+            },
+            dark: {
+                bg: "#121212",
+                nodes: {
+                    "Person": { background: "#00E5FF", border: "#00E5FF" },       // Cyan
+                    "Organization": { background: "#00E676", border: "#00E676" }, // Neon Green
+                    "Location": { background: "#FFEA00", border: "#FFEA00" },     // Yellow
+                    "Work": { background: "#FF9100", border: "#FF9100" },         // Orange
+                    "Entity": { background: "#B0BEC5", border: "#B0BEC5" },       // Silver
+                    "Topic": { background: "#FF3366", border: "#FF3366" }         // Neon Pink
+                },
+                edgeReal: "#546E7A",
+                edgeVirtual: "#FF3366"
+            }
+        };
+
+        let isDark = false;
+
+        window.toggleTheme = function() {
+            isDark = !isDark;
+            const theme = isDark ? THEMES.dark : THEMES.light;
+            
+            // Toggle CSS variables via class
+            document.body.classList.toggle('dark-mode', isDark);
+            
+            // Update Canvas Background
+            const container = document.getElementById('mynetwork');
+            if(container) container.style.backgroundColor = theme.bg;
+            
+            // Update Nodes Colors
+            const nodeUpdates = nodes.get().map(node => {
+                const type = node.entity_type || 'Entity';
+                const colors = theme.nodes[type] || theme.nodes['Entity'];
+                return {
+                    id: node.id,
+                    color: {
+                        background: colors.background,
+                        border: colors.border,
+                        // 🔥 แก้ไขการเลือก: ขอบหนาขึ้น และสีขอบจะสว่างทะลุตาในโหมดมืด
+                        highlight: { 
+                            background: colors.background, 
+                            border: isDark ? "#ffffff" : "#0f172a" 
+                        }
+                    },
+                    // 🔥 แก้ไขสีตัวอักษรของ Node: สว่างใช้ตัวดำ มืดใช้ตัวขาว (ตัดกับพื้นหลัง)
+                    font: { color: isDark ? "#e2e8f0" : "#1e293b" } 
+                };
+            });
+            nodes.update(nodeUpdates);
+            
+            // Update Edges Colors
+            const edgeUpdates = edges.get().map(edge => {
+                const isVirtual = edge.dashes === true;
+                return {
+                    id: edge.id,
+                    color: {
+                        color: isVirtual ? theme.edgeVirtual : theme.edgeReal,
+                        highlight: isDark ? "#ffffff" : "#94a3b8"
+                    },
+                    // 🔥 สีตัวอักษรและขอบตัวอักษรบนเส้นเชื่อม
+                    font: { 
+                        color: isDark ? "#9e9e9e" : "#334155",
+                        strokeColor: isDark ? "#121212" : "#f8fafc"
+                    } 
+                };
+            });
+            edges.update(edgeUpdates);
+            
+            // Update Button Text
+            document.getElementById('theme-btn').innerHTML = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+        };
+
+        // ==========================================
+        // Physics & Panel Logic
+        // ==========================================
         let physicsEnabled = true;
 
-        // ฟังก์ชันเปิด/ปิด Physics
-        function togglePhysics() {
+        window.togglePhysics = function() {
             physicsEnabled = !physicsEnabled;
             network.setOptions({ physics: { enabled: physicsEnabled } });
             document.getElementById('freeze-btn').innerHTML = physicsEnabled ? '❄️ Freeze Graph' : '▶️ Unfreeze Graph';
             if(!physicsEnabled) network.stopSimulation();
         }
 
-        function closePanel() {
+        window.closePanel = function() {
             document.getElementById("side-panel").classList.remove("open");
-            network.unselectAll(); // เอาไฮไลท์ออกเมื่อปิดแผง
+            network.unselectAll(); 
         }
 
-        // ฟังก์ชันหลักสำหรับอัปเดตข้อมูลและซูมกล้อง
-        function focusAndOpenPanel(nodeId) {
+        window.focusAndOpenPanel = function(nodeId) {
             var node = nodes.get(nodeId);
             if(!node) return;
 
-            // 1. ซูมกล้องไปหา Node แบบ Animation
             network.focus(nodeId, {
                 scale: 1.2,
                 animation: { duration: 800, easingFunction: "easeInOutQuad" }
             });
-            network.setSelection({ nodes: [nodeId] }); // ไฮไลท์ Node
+            network.setSelection({ nodes: [nodeId] }); 
 
-            // 2. อัปเดตข้อมูลใน Panel
             document.getElementById("panel-title").innerText = node.label || nodeId;
-            var nodeType = node.group || 'Entity';
+            
+            var nodeType = node.entity_type || 'Entity';
             document.getElementById("panel-badge").innerHTML = `<span class="info-tag">${nodeType}</span>`;
             
             if(node.title) {
@@ -445,7 +568,6 @@ function highlightFilter(filter) {
                 document.getElementById("panel-overview").innerHTML = "No additional context.";
             }
             
-            // 3. สร้างรายชื่อที่เกี่ยวข้องกัน (คลิกได้)
             var connectedNodes = network.getConnectedNodes(nodeId);
             var connectionsHtml = "";
             
@@ -453,19 +575,15 @@ function highlightFilter(filter) {
                 connectedNodes.forEach(function(cNodeId) {
                     var cNode = nodes.get(cNodeId);
                     var cLabel = cNode ? cNode.label : cNodeId;
-                    // ฝัง onclick ส่งค่า string กลับไปหาฟังก์ชัน
-                    connectionsHtml += `<li class="connection-item" onclick="focusAndOpenPanel('${cNodeId}')">${cLabel}</li>`;
+                    connectionsHtml += `<li class="connection-item" onclick="focusAndOpenPanel(\'${cNodeId}\')">${cLabel}</li>`;
                 });
             } else {
-                connectionsHtml = `<li style="list-style: none; color: #94a3b8; font-size: 14px;">No direct connections</li>`;
+                connectionsHtml = `<li style="list-style: none; color: var(--text-muted); font-size: 14px;">No direct connections</li>`;
             }
             document.getElementById("panel-connections").innerHTML = connectionsHtml;
-            
-            // 4. เปิด Panel
             document.getElementById("side-panel").classList.add("open");
         }
 
-        // รอ vis.js โหลดเสร็จ
         setTimeout(function() {
             if (typeof network !== 'undefined') {
                 network.on("click", function (params) {

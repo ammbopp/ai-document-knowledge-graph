@@ -1,7 +1,17 @@
-import streamlit as st
 import os
+import warnings
+import logging
+
+# 🔥 ปิดคำเตือนกวนใจทั้งหมดก่อนโหลดไลบรารีตัวอื่น
+os.environ["TRANSFORMERS_VERBOSITY"] = "error" 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+warnings.filterwarnings("ignore")
+logging.getLogger("transformers").setLevel(logging.ERROR)
+
+import streamlit as st
 import spacy
 import pandas as pd
+import time
 import streamlit.components.v1 as components
 
 from src.relation_extraction_ai import extract_relations
@@ -58,6 +68,9 @@ if document_text:
     # ปุ่มกดเริ่มวิเคราะห์
     if st.button("🚀 Analyze & Generate Graph", type="primary", use_container_width=True):
         
+        # 🔥 เริ่มจับเวลาทันทีที่กดปุ่ม
+        start_time = time.time()
+
         # สร้าง Progress Bar ไว้ด้านบน
         progress_bar = st.progress(0, text="เตรียมการวิเคราะห์...")
         
@@ -93,25 +106,48 @@ if document_text:
             # --- ขั้นตอนที่ 3 (80% -> 95%) ---
             st.write("🔍 3. กำลังยุบรวมคำที่ความหมายเหมือนกัน (Entity Resolution)...")
             resolved_relations = []
-            seen_edges = set()
+            seen_entity_pairs = set() 
             total_usable = len(usable_relations)
             
             if total_usable > 0:
+                print("\n" + "="*50)
+                print("📊 สรุปเส้นความสัมพันธ์ที่นำไปสร้างกราฟ (Final Edges)")
+                print("="*50)
+                
+                # 🔥 PASS 1: ให้ระบบเรียนรู้คำศัพท์ "ทั้งหมด" ก่อน เพื่อหาชื่อที่สมบูรณ์ที่สุด
+                for r in usable_relations:
+                    resolver.resolve(r["head"])
+                    resolver.resolve(r["tail"])
+
+                # 🔥 PASS 2: ดึงชื่อที่นิ่งแล้ว มาเช็คความซ้ำซ้อนและสร้างกราฟ
                 for i, r in enumerate(usable_relations):
+                    # ตอนนี้คำสั้นๆ จะถูกอัปเกรดเป็นคำที่ยาวที่สุดแบบเป๊ะๆ แล้ว
                     resolved_head = resolver.resolve(r["head"])
                     resolved_tail = resolver.resolve(r["tail"])
-                    edge_key = (resolved_head.lower(), r["relation"].lower(), resolved_tail.lower())
                     
-                    if edge_key not in seen_edges:
-                        seen_edges.add(edge_key)
+                    # ป้องกันการโยงหาตัวเอง
+                    if resolved_head.lower() == resolved_tail.lower():
+                        continue
+                        
+                    # สร้างกุญแจตรวจสอบแบบ "ไม่สนลำดับและทิศทาง"
+                    pair_key = frozenset([resolved_head.lower(), resolved_tail.lower()])
+                    
+                    if pair_key not in seen_entity_pairs:
+                        seen_entity_pairs.add(pair_key)
+                        
                         new_r = r.copy()
                         new_r["head"] = resolved_head
                         new_r["tail"] = resolved_tail
                         resolved_relations.append(new_r)
+                        
+                        # พิมพ์ผลลัพธ์ที่รอดจากการคัดกรองออกทางหน้าจอดำ
+                        print(f"🔗 [Node] {new_r['head']}  --({new_r['relation']})-->  [Node] {new_r['tail']}")
                     
-                    # คำนวณ % ปัจจุบัน (เริ่มที่ 80% และบวกเพิ่มสูงสุด 15%)
+                    # อัปเดตหลอดโหลด
                     current_percent = 80 + int(15 * ((i + 1) / total_usable))
                     progress_bar.progress(current_percent, text=f"กำลังคลีนข้อมูล... ({i+1}/{total_usable}) - {current_percent}%")
+                
+                print("="*50 + "\n")
             else:
                 progress_bar.progress(95, text="ข้ามการคลีนข้อมูล (95%)")
 
@@ -123,7 +159,20 @@ if document_text:
             os.makedirs("output", exist_ok=True)
             visualize_graph(G, output_file=output_path)
             
-            progress_bar.progress(100, text="✅ วิเคราะห์ข้อมูลเสร็จสิ้นสมบูรณ์ (100%)")
+            # 🔥 หยุดจับเวลาเมื่อวาดกราฟเสร็จ
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            
+            # 🔥 แปลงเวลาให้ดูอ่านง่าย (เช่น "1 นาที 15 วินาที" หรือ "45.20 วินาที")
+            minutes = int(elapsed_time // 60)
+            seconds = elapsed_time % 60
+            if minutes > 0:
+                time_str = f"{minutes} นาที {int(seconds)} วินาที"
+            else:
+                time_str = f"{seconds:.2f} วินาที"
+            
+            # 🔥 อัปเดตข้อความเพื่อโชว์เวลาที่ใช้ไป
+            progress_bar.progress(100, text=f"✅ วิเคราะห์ข้อมูลเสร็จสิ้นสมบูรณ์ (ใช้เวลาทั้งหมด ⏱️ {time_str})")
             status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
 
         # ==========================================

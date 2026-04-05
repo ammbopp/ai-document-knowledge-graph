@@ -16,23 +16,26 @@ class EntityResolver:
         if clean_lower in self.resolved_entities:
             return self.resolved_entities[clean_lower]
             
-        # 2. 🔥 กฎใหม่: Substring Matching (เช็คคำซ้อนทับ)
-        for existing_lower, existing_canonical in self.resolved_entities.items():
-            # ถ้าคำใหม่ซ่อนอยู่ในคำเก่า หรือ คำเก่าซ่อนอยู่ในคำใหม่ (และต้องยาวกว่า 3 ตัวอักษร ป้องกันการยุบรวมคำมั่วๆ เช่น "the")
+        # 2. 🔥 กฎใหม่: Substring Matching แบบจำกัดระยะ (ไม่ให้คำรวมกันมั่ว)
+        # ต้องใช้ list() ครอบ .items() เพื่อป้องกัน Error หากมีการแก้ไข Dict ระหว่างวนลูป
+        for existing_lower, existing_canonical in list(self.resolved_entities.items()):
             if (len(clean_lower) > 3 and clean_lower in existing_lower) or \
                (len(existing_lower) > 3 and existing_lower in clean_lower):
                 
-                # ให้ยึดชื่อที่ "ยาวกว่า" (มีรายละเอียดมากกว่า) เป็นชื่อหลักเสมอ
-                if len(clean_entity) > len(existing_canonical):
-                    # อัปเดตข้อมูลเก่าทั้งหมดให้มาใช้ชื่อใหม่ที่ยาวกว่า
-                    for k, v in self.resolved_entities.items():
-                        if v == existing_canonical:
-                            self.resolved_entities[k] = clean_entity
-                    self.resolved_entities[clean_lower] = clean_entity
-                    return clean_entity
-                else:
-                    self.resolved_entities[clean_lower] = existing_canonical
-                    return existing_canonical
+                # เช็คความต่างของความยาว ถ้ายาวต่างกันเกิน 6 ตัวอักษร ถือว่าเป็นคนละความหมาย
+                # เช่น "TechCorp" (8) กับ "CTO of TechCorp" (15) -> ต่างกัน 7 -> ไม่รวม!
+                # แต่ "Alice Johnson" (13) กับ "CTO Alice Johnson" (17) -> ต่างกัน 4 -> รวม!
+                if abs(len(clean_lower) - len(existing_lower)) <= 6:
+                    # ให้ยึดชื่อที่ "ยาวกว่า" เป็นชื่อหลักเสมอ
+                    if len(clean_entity) > len(existing_canonical):
+                        for k, v in self.resolved_entities.items():
+                            if v == existing_canonical:
+                                self.resolved_entities[k] = clean_entity
+                        self.resolved_entities[clean_lower] = clean_entity
+                        return clean_entity
+                    else:
+                        self.resolved_entities[clean_lower] = existing_canonical
+                        return existing_canonical
 
         # 3. ใช้ AI ค้นหาความหมายที่คล้ายกัน (Cosine Similarity)
         if self.resolved_entities:
