@@ -1,157 +1,117 @@
+# relation_extraction_ai.py
 import re
 import requests
-import json
+import spacy
 
-# =========================
-# 1. API Setup (Ollama)
-# =========================
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "llama3"
+nlp = spacy.load("en_core_web_sm")
 
-print(f"⏳ Connecting to local Ollama ({MODEL_NAME})...")
 
-# =========================
-# 2. Prompt Engineering (Tuned for Llama 3)
-# =========================
-PROMPT = """You are an expert NLP system. Your ONLY task is to extract relationships as exact triplets.
-DO NOT output any conversational text, greetings, or explanations. ONLY output the triplets.
-
-Task: Extract clear and concise relationship triplets from the text.
-Format: Entity 1 | Verb Phrase | Entity 2 ###
+# ==========================================
+# 1. Prompt Engineering
+# ==========================================
+PROMPT = """You are an expert NLP relation extraction system. Your task is to extract highly accurate relationship triplets (Subject | Verb Phrase | Object) from the text.
 
 CRITICAL RULES:
 1. Output MUST strictly follow this pattern: Subject | Verb Phrase | Object ###
-2. You MUST use EXACTLY TWO pipes (|) per relationship. Never combine the verb and the object.
-3. Keep Entities SHORT. Entities MUST be NOUNS (Person, Organization, Concept).
-4. Keep [Entity 2] short and precise (1-5 words). Do NOT copy long descriptive phrases. 
-5. Extract the CORE action. Ignore speech tags like "said that".
-6. SEPARATE TITLES FROM ORGANIZATIONS: Put job titles in the Verb Phrase. Example: BAD = `John | is | CEO of Apple`. GOOD = `John | is CEO of | Apple`.
-7. CLEAN NAMES: Remove titles (like CTO, CEO, Dr., Mr.) from person names. Example: Use `Alice Johnson` instead of `CTO Alice Johnson`.
-8. Do not use generic placeholder words like "Subject" or "Object" in your output. Use the actual names from the text.
-9. Do NOT use brackets, quotes, or any special punctuation around the words.
-10. DO NOT extract years, dates, or times (e.g., 2022, 2025, Monday) as entities. Ignore them completely.
-11. NEVER use verbs or actions as Entities (e.g., "to launch"). Turn them into relationships instead.
-12. AVOID REDUNDANCY: Do NOT output multiple slightly different triplets for the same meaning. Just pick the best one.
-13. NO CHAT. NO EXPLANATIONS. Start immediately with the first triplet.
+2. Separate triplets using '###'. You can put multiple triplets on new lines.
+3. Keep Entities SHORT and concrete (1-4 words).
+4. DIRECTIONAL ACCURACY: Pay close attention to who performs the action and who receives it. Do not invert subjects and objects.
+5. CONTENT OVER SPEECH WRAPPERS: Never extract the act of speaking or reporting itself (e.g., "said", "told", "testified", "claimed") as a relation. Extract the core factual claim inside what was said.
 
-Examples:
-Input: John Miller was appointed as the project manager and worked with GreenField University.
-Output: John Miller | was appointed as | project manager ### John Miller | worked with | GreenField University ###
+=== EXAMPLES OF STRUCTURAL EXTRACTION ===
+Input: Alice told investigators last week that Bob secretly stole the company assets from the vault.
+Output: Bob | stole | company assets ### company assets | stored in | vault ###
 
-Input: TechCorp partnered with InnovateX to build an AI platform in 2023.
-Output: TechCorp | partnered with | InnovateX ### TechCorp | built | AI platform ###
+Input: Several employees filed a lawsuit against the firm, claiming they were mistreated by the supervisor.
+Output: employees | filed lawsuit against | firm ### supervisor | mistreated | employees ###
+=== END OF EXAMPLES ===
 
-Input: US President Donald Trump said on Friday that he will impose global tariffs of 15%.
-Output: Donald Trump | will impose | global tariffs ### 
-
-Input: That law allows these new tariffs to stay in place before the administration must seek congressional approval.
-Output: law | allows | new tariffs ### administration | must seek | congressional approval ###
-
-Input: Major studios like Disney quickly accused ByteDance of copyright infringement.
-Output: Disney | accused | ByteDance ### Disney | accused of | copyright infringement ###
-
-Input: Seedance 2.0 can generate cinema-quality video, complete with sound effects and dialogue.
-Output: Seedance 2.0 | can generate | cinema-quality video ### Seedance 2.0 | complete with | sound effects ###
-
-Input: In 2022, the Facility of Engineering collaborated with the Facility of Science.
-Output: Facility of Engineering | collaborated with | Facility of Science ###
-
-Input: Dr. Sarah is the Director of the Medical Institute.
-Output: Sarah | is the Director of | Medical Institute ###
-
+STRICT INSTRUCTION: Extract triplets ONLY from the input text provided below. Do not copy the examples.
 
 Input: {}
-Output:
-"""
+Output:"""
 
-# =========================
-# 3. Helper Function (คุยกับ Ollama API)
-# =========================
+# ==========================================
+# 2. Helper Functions (นำ \n\n ออกจาก stop tokens และกรองขยะบรรทัดต่อบรรทัด)
+# ==========================================
 def ask_llm(text):
     input_text = PROMPT.format(text)
-    
     payload = {
-        "model": MODEL_NAME,
+        "model": "llama3",
         "prompt": input_text,
         "stream": False,
         "options": {
-            "temperature": 0.0,#ไม่เพ้อ
-            "num_predict": 150, #ไม่ยาว
-            "stop": ["Input:", "\n\n", "Input"]  # หยุดทันที ป้องกันการไหลของข้อความ
+            "temperature": 0.0, 
+            "num_predict": 300,
+            # 🔥 ถอด "\n\n" ออก เพื่อให้โมเดลสามารถเคาะบรรทัดเปล่าก่อนส่งคำตอบได้โดยไม่โดนสั่งตัดจบ
+            "stop": ["Input:", "=== END"] 
         }
     }
-    
     try:
-        response = requests.post(OLLAMA_API_URL, json=payload)
-        response.raise_for_status() # เช็คว่า Request ผ่านหรือไม่
+        response = requests.post("http://localhost:11434/api/generate", json=payload)
+        response.raise_for_status()
+        result = response.json().get("response", "").strip()
         
-        result = response.json().get("response", "")
-        
-        # ล้างขยะที่ AI อาจจะแอบใส่มา
+        # ล้างขยะสัญลักษณ์ทั่วไป
         result = result.replace("[", "").replace("]", "").replace("'", "").replace('"', "").replace("`", "").strip()
         
-        # ป้องกันกรณี Llama เผลอใส่คำเกริ่นนำ
-        if "Here" in result or "Output" in result:
-            lines = result.split('\n')
-            # หาบรรทัดที่มีท่อ | (แสดงว่าเป็นข้อมูล Triplet)
-            result = " ".join([line for line in lines if "|" in line])
-            
-        return result
+        # 🛡️ Dynamic Post-Processing: ถ้ามีบรรทัดบทสนทนาหลุดมา ให้กรองเก็บเฉพาะบรรทัดที่มีสัญลักษณ์ท่อ '|' เท่านั้น
+        lines = result.split('\n')
+        clean_lines = [line.strip() for line in lines if "|" in line]
         
-    except requests.exceptions.RequestException as e:
-        print(f"\n❌ Ollama Connection Error: {e}")
-        print("💡 ตรวจสอบให้แน่ใจว่าเปิดโปรแกรม Ollama และรัน 'ollama run llama3' ไว้แล้ว")
+        return " ".join(clean_lines)
+    except Exception as e:
+        print(f"\n❌ Ollama Error: {e}")
         return ""
 
-# =========================
-# 4. Filters & Logic
-# =========================
-FORBIDDEN_RELATIONS = {
-    "ceo", "founder", "manager", "president", "director", "head", 
-    "owner", "partner", "member", "company", "project",
-    "said", "says", "announced", "stated", "told", "added", "reported", "mentioned"
-}
+# ==========================================
+# 3. Dynamic Structural Filters (ตรวจด้วยหลักไวยากรณ์)
+# ==========================================
+def is_valid_entity(entity):
+    ent_clean = entity.strip()
+    if not ent_clean or ent_clean.isdigit() or len(ent_clean) < 2: 
+        return False
+        
+    if ent_clean.lower() in {"he", "she", "it", "they", "we", "i", "you", "this", "that"}: 
+        return False
+        
+    doc = nlp(ent_clean)
+    
+    # กฎข้อที่ 1: ต้องมีคำนาม หรือคำสรรพนามประกอบอยู่จริง ไม่ปล่อยให้เป็นคำเชื่อมลอยๆ
+    if not any(token.pos_ in ["NOUN", "PROPN", "PRON"] for token in doc):
+        return False
+        
+    # กฎข้อที่ 2: ห้ามมีกริยาแท้/กริยาช่วยผสมอยู่ในตัวโหนด (สกัดพวก Clause ย่อยออก)
+    if any(token.pos_ in ["VERB", "AUX"] for token in doc):
+        return False
+
+    # กฎข้อที่ 3: คำสุดท้ายของโหนด ห้ามลงท้ายด้วยคำบุพบทหรือคำเชื่อม (แก้ปัญหาโหนดค้างติ่ง)
+    if doc[-1].pos_ in ["ADP", "CCONJ", "SCONJ", "PART"]:
+        return False
+        
+    return True
 
 def is_valid_relation(relation):
     rel_clean = relation.strip().lower()
-    if any(word in rel_clean.split() for word in FORBIDDEN_RELATIONS): 
+    if len(rel_clean) < 2 or len(rel_clean.split()) > 5: 
         return False
-        
-    if relation[0].isupper() and " " not in relation: return False
-    if len(rel_clean) < 2: return False
-    if len(rel_clean.split()) > 4: return False
-        
     return True
 
 def is_hallucination(head, tail, original_text):
     text_lower = original_text.lower()
     head_clean = head.lower().strip()
     tail_clean = tail.lower().strip()
-    
-    if head_clean not in text_lower and head_clean.split()[0] not in text_lower: return True 
-    if tail_clean not in text_lower and tail_clean.split()[0] not in text_lower: return True 
+    if head_clean.split()[0] not in text_lower or tail_clean.split()[0] not in text_lower: 
+        return True 
     return False
 
 def parse_triples(text):
     triples = []
-    text = text.strip()
-    if text.startswith("###"):
-        text = text[3:]
-        
     facts = [f.strip() for f in text.split("###") if f.strip()]
-
     for fact in facts:
         parts = [p.strip() for p in fact.split("|") if p.strip()]
-        
         if len(parts) == 3:
             triples.append((parts[0], parts[1], parts[2]))
-        elif len(parts) >= 5 and len(parts) % 2 == 1:
-            for i in range(1, len(parts) - 1, 2):
-                triples.append((parts[0], parts[i], parts[i+1]))
-        elif len(parts) == 4:
-            triples.append((parts[0], parts[1], parts[2]))
-            triples.append((parts[0], parts[1], parts[3]))
-
     return triples
 
 def deduplicate(relations):
@@ -164,30 +124,51 @@ def deduplicate(relations):
             unique.append(r)
     return unique
 
-def is_valid_entity(entity):
-    ent_clean = entity.strip().lower()
+# ==========================================
+# 4. Directional & Substance Gatekeeper (ด่านตรวจความถูกต้องเชิงตรรกะ)
+# ==========================================
+def evaluate_triplet_cloze(head, relation, tail, source_sentence, threshold=0.6):
+    """
+    ด่านตรวจความถูกต้องเชิงความหมายและทิศทางประธาน-กรรม (Directional & Structural Gatekeeper)
+    """
+    prompt = f"""You are a strict validation logic gate for Knowledge Graphs. Verify the extracted triplet against the text.
+
+Text: "{source_sentence}"
+Triplet: [{head}] ---> ({relation}) ---> [{tail}]
+
+CRITICAL VALIDATION RULES:
+1. DIRECTIONAL CHECK: Does [{head}] actually initiate or perform the action ({relation}) upon [{tail}] in the text? If the text states or implies the reverse (i.e., [{tail}] did it to [{head}]), it is an INVERSION and completely INVALID.
+2. SUBSTANCE CHECK: Is the relation a real factual event, or is it just a speech tag like "told", "said", "testified"? Speech tag triplets are strictly INVALID.
+
+Reply with ONLY 'VALID' if it passes both rules perfectly.
+Reply with ONLY 'INVALID' if there is an inversion, speech noise, or factual error.
+Answer:"""
     
-    if ent_clean.isdigit(): return False
-    if len(ent_clean) < 2: return False
-        
-    forbidden_words = {
-        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-        "today", "yesterday", "tomorrow",
-        "he", "she", "it", "they", "this", "that", "these", "those", "we", "i", "you",
-        "the", "a", "an", "and", "or", "some", "many", "all"
+    payload = {
+        "model": "llama3",
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0.0}
     }
     
-    if ent_clean in forbidden_words:
-        return False
-    
-    if ent_clean.startswith("to "): 
-        return False
+    try:
+        response = requests.post("http://localhost:11434/api/generate", json=payload)
+        response.raise_for_status()
+        result = response.json().get("response", "").strip().upper()
         
-    return True
-
-# =========================
+        if "VALID" in result and "INVALID" not in result:
+            return True, 1.0
+        else:
+            print(f"🚫 [Structural Filtered: REJECTED] {head} -> {relation} -> {tail}")
+            return False, 0.0
+            
+    except Exception as e:
+        print(f"⚠️ Evaluator Error: {e}")
+        return True, 0.5
+        
+# ==========================================
 # 5. Main Extraction Function
-# =========================
+# ==========================================
 def extract_relations(sentences):
     print("🔥 extract_relations CALLED (Ollama Llama3 - FIXED)")
     relations = []
@@ -197,15 +178,19 @@ def extract_relations(sentences):
 
         try:
             output = ask_llm(sent)
-            print(f"DEBUG Output: {output}") # สามารถเอาบรรทัดนี้ออกได้ถ้าไม่อยากให้หน้าจอรันรก
+            if output:
+                print("DEBUG Output:")
+                # ใช้เครื่องหมาย ### ในการหั่นข้อความออกมาพิมพ์ทีละบรรทัด
+                for fact in output.split("###"):
+                    if fact.strip():
+                        print(f"  {fact.strip()}")
 
-            if not output: # ถ้า API มีปัญหาหรือตอบกลับมาว่างเปล่า ให้ข้ามไป
+            if not output: 
                 continue
 
             triples = parse_triples(output)
 
             for head, rel_text, tail in triples:
-                # 🔥 ตัดคำนำหน้า (Article) ทิ้งอัตโนมัติ (เช่น "The robotics program" -> "robotics program")
                 head = re.sub(r'^(the|a|an)\s+', '', head.strip(), flags=re.IGNORECASE)
                 tail = re.sub(r'^(the|a|an)\s+', '', tail.strip(), flags=re.IGNORECASE)
 
@@ -214,13 +199,17 @@ def extract_relations(sentences):
                 if is_hallucination(head, tail, sent): continue
                 if head.lower() == tail.lower(): continue
 
+                is_valid, confidence_score = evaluate_triplet_cloze(head, rel_text, tail, sent)
+                if not is_valid:
+                    continue
+
                 relations.append({
                     "head": head,
                     "relation": rel_text,
                     "tail": tail,
                     "source_sentence": sent,
-                    "confidence": 0.9,
-                    "method": "Ollama_Llama3"
+                    "confidence": confidence_score,
+                    "method": "Ollama_Llama3_Factual_Verifier"
                 })
 
         except Exception as e:
