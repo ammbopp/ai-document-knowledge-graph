@@ -1,0 +1,6 @@
+doc_index,word_count,num_chunks,latency_coref_sec,latency_chunking_sec,latency_extraction_sec,latency_entity_res_sec,latency_summary_sec,total_latency_sec,raw_triplets_extracted,filtered_triplets_passed,final_graph_nodes,final_graph_edges,graph_density,rouge1_f1,rouge2_f1,rougeL_f1
+1,151,4,23.57,0.05,64.73,0.17,9.49,98.01,2,2,4,3,0.25,0.0992,0.0168,0.0826
+2,356,5,22.26,0.08,89.77,0.45,19.66,132.21,9,9,14,13,0.0714,0.0847,0.0321,0.0847
+3,221,4,24.95,0.05,72.19,0.58,17.75,115.52,12,12,13,12,0.0769,0.1005,0.0711,0.0905
+4,887,24,51.66,0.18,261.38,1.94,20.29,335.45,27,27,31,31,0.0333,0.0688,0.044,0.0625
+5,491,9,33.93,0.11,104.15,1.11,12.16,151.45,8,8,14,13,0.0714,0.0948,0.0383,0.0758
