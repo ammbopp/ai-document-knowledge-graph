@@ -29,18 +29,21 @@ from src.web_fetch import decode_upload, fetch_text_from_url
 st.set_page_config(page_title="AI Knowledge Graph", layout="wide", page_icon="🧠",
                    initial_sidebar_state="expanded")
 
-st.markdown(
-    """
-    <style>
-      .block-container {padding-top: 2rem; max-width: 1200px;}
-      .legend {display:flex; flex-wrap:wrap; gap:.4rem 1rem; margin:.25rem 0 .75rem;}
-      .legend span {display:inline-flex; align-items:center; gap:.4rem; font-size:.9rem;}
-      .legend i {width:.8rem; height:.8rem; border-radius:50%; display:inline-block;}
-      .hero-sub {opacity:.75; margin-top:-.5rem;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+_css = pathlib.Path("assets/style.css")
+if _css.exists():
+    st.markdown(f"<style>{_css.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+
+HERO_SVG = """<svg viewBox="0 0 300 190" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round">
+  <g opacity=".55"><path d="M60 100 L130 45 L215 70 L240 140 L150 150 L60 100 Z"/>
+  <path d="M130 45 L150 150 M215 70 L60 100"/></g>
+  <g fill="white" stroke="none">
+    <circle cx="60" cy="100" r="11" opacity=".95"/><circle cx="130" cy="45" r="15"/>
+    <circle cx="215" cy="70" r="10" opacity=".85"/><circle cx="240" cy="140" r="13" opacity=".9"/>
+    <circle cx="150" cy="150" r="9" opacity=".8"/><circle cx="270" cy="40" r="6" opacity=".6"/>
+  </g>
+  <path d="M215 70 L270 40" opacity=".55"/>
+</svg>"""
+HERO_SVG = re.sub(r">\s+<", "><", HERO_SVG)  # Markdown ends an HTML block at blank lines
 
 # Streamlit renamed use_container_width -> width="stretch" and deprecated components.html -> st.iframe
 STRETCH = ({"width": "stretch"} if "width" in inspect.signature(st.button).parameters
@@ -105,8 +108,10 @@ def text_hash(text):
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
-def fmt_duration(seconds):
+def fmt_duration(seconds, short=False):
     seconds = int(seconds)
+    if short:  # compact form for metric cards: 2:16 นาที
+        return f"{seconds // 60}:{seconds % 60:02d} นาที" if seconds >= 60 else f"{seconds} วินาที"
     return f"{seconds // 60} นาที {seconds % 60} วินาที" if seconds >= 60 else f"{seconds} วินาที"
 
 
@@ -115,7 +120,9 @@ def fmt_duration(seconds):
 # ==========================================
 ollama_ok, ollama_msg = check_ollama()
 with st.sidebar:
-    st.header("⚙️ สถานะและการตั้งค่า")
+    st.markdown("<div class='brand'><span class='logo'>🧠</span>AI Knowledge Graph</div>",
+                unsafe_allow_html=True)
+    st.markdown("<div class='eyebrow'>สถานะระบบ</div>", unsafe_allow_html=True)
     if ollama_ok:
         st.success(ollama_msg, icon="🟢")
     else:
@@ -146,9 +153,10 @@ with st.sidebar:
 # ==========================================
 # Header + input
 # ==========================================
-st.title("🧠 AI Knowledge Graph")
-st.markdown("<p class='hero-sub'>เปลี่ยนบทความภาษาอังกฤษเป็นแผนผังความสัมพันธ์ที่โต้ตอบได้ "
-            "พร้อมสรุปเนื้อหา</p>", unsafe_allow_html=True)
+st.markdown(
+    f"""<div class="hero">{HERO_SVG}<h1>แปลงบทความให้เป็น Knowledge Graph</h1>
+      <p>วางข้อความหรือลิงก์ข่าวภาษาอังกฤษ แล้วดูความสัมพันธ์ระหว่างบุคคล องค์กร และเหตุการณ์
+      ในรูปแผนผังที่โต้ตอบได้ พร้อมสรุปเนื้อหา</p><div class="badges"><span class="badge">🔒 ประมวลผลบนเครื่อง</span><span class="badge">🕸️ กราฟโต้ตอบได้</span><span class="badge">📤 ส่งออก HTML · CSV · JSON</span></div></div>""", unsafe_allow_html=True)
 
 method = st.segmented_control("วิธีใส่ข้อมูล", [PASTE, UPLOAD, URL], key="input_method",
                               label_visibility="collapsed") or PASTE
@@ -187,16 +195,25 @@ else:
 # Empty state
 # ==========================================
 if not main_text:
-    with st.container(border=True):
-        st.markdown("**เริ่มต้นใช้งาน**  \n"
-                    "1️⃣ เลือกวิธีใส่ข้อมูลด้านบน &nbsp;→&nbsp; 2️⃣ กดวิเคราะห์ &nbsp;→&nbsp; "
-                    "3️⃣ สำรวจกราฟ ตาราง และสรุป")
-        samples = list_samples()
-        if samples:
-            st.caption("หรือลองใช้เอกสารตัวอย่าง:")
-            for col, (name, text) in zip(st.columns(len(samples)), samples):
-                col.button(f"📄 {name}", help=text[:160] + "...", key=f"sample_{name}",
-                           on_click=load_sample, args=(name, text), **STRETCH)
+    st.markdown(
+        """<div class="steps">
+          <div class="step"><b><span class="n">1</span>ใส่ข้อมูล</b>
+            <span class="d">วางข้อความ อัปโหลดไฟล์ .txt หรือใส่ลิงก์ข่าวภาษาอังกฤษ</span></div>
+          <div class="step"><b><span class="n">2</span>วิเคราะห์</b>
+            <span class="d">AI สกัดความสัมพันธ์ ตรวจทิศทาง และรวมเอนทิตีที่ซ้ำกัน</span></div>
+          <div class="step"><b><span class="n">3</span>สำรวจผล</b>
+            <span class="d">ดูกราฟ ตารางพร้อมหลักฐาน ข้อมูลเชิงลึก และสรุป</span></div>
+        </div>""", unsafe_allow_html=True)
+    samples = list_samples()
+    if samples:
+        st.markdown("<div class='eyebrow'>ลองใช้เอกสารตัวอย่าง</div>", unsafe_allow_html=True)
+        for col, (name, text) in zip(st.columns(len(samples)), samples):
+            with col, st.container(border=True, key=f"card_{name}"):
+                st.markdown(f"<div class='card-title'>📄 {name}</div>"
+                            f"<div class='card-text'>{text[:110].replace('<', '&lt;')}…</div>",
+                            unsafe_allow_html=True)
+                st.button("ใช้ตัวอย่างนี้", key=f"sample_{name}", on_click=load_sample, args=(name, text),
+                          **STRETCH)
     st.stop()
 
 # ==========================================
@@ -209,7 +226,7 @@ will_truncate = chars > max_chars
 c1, c2, c3 = st.columns(3)
 c1.metric("จำนวนคำ", f"{words:,}", border=True)
 c2.metric("จำนวนตัวอักษร", f"{chars:,}", border=True)
-c3.metric("เวลาที่ใช้โดยประมาณ", fmt_duration(estimate_seconds(main_text[:max_chars], window_size)), border=True,
+c3.metric("เวลาที่ใช้โดยประมาณ", fmt_duration(estimate_seconds(main_text[:max_chars], window_size), short=True), border=True,
           help="ประมาณจากความยาวเอกสาร เวลาจริงขึ้นกับเครื่องและโมเดล")
 
 if len(re.findall(r"[฀-๿]", main_text)) > 0.3 * max(chars, 1):
@@ -238,14 +255,18 @@ if run:
                                       threshold=threshold, window_size=window_size, max_chars=max_chars,
                                       on_progress=on_progress)
         except Exception as e:
-            status.update(label="เกิดข้อผิดพลาด", state="error")
-            progress.empty()
-            st.error(f"วิเคราะห์ไม่สำเร็จ: {e}", icon="❌")
-            with st.expander("รายละเอียดข้อผิดพลาด"):
-                st.code(traceback.format_exc())
-            st.stop()
-        status.update(label=f"วิเคราะห์เสร็จสิ้น · ใช้เวลา {fmt_duration(result.stats['elapsed'])}",
-                      state="complete", expanded=False)
+            status.update(label="เกิดข้อผิดพลาด", state="error", expanded=False)
+            failure = (e, traceback.format_exc())
+        else:
+            failure = None
+            status.update(label=f"วิเคราะห์เสร็จสิ้น · ใช้เวลา {fmt_duration(result.stats['elapsed'])}",
+                          state="complete", expanded=False)
+    if failure:  # shown outside the (collapsed) status box so it is always visible
+        progress.empty()
+        st.error(f"วิเคราะห์ไม่สำเร็จ: {failure[0]}", icon="❌")
+        with st.expander("รายละเอียดข้อผิดพลาด"):
+            st.code(failure[1])
+        st.stop()
     progress.empty()
     st.session_state.result, st.session_state.result_hash = result, cur_hash
     st.session_state.result_name = re.sub(r"[^\w\-]+", "_", doc_name) or "document"
@@ -262,7 +283,9 @@ if st.session_state.result_hash != cur_hash:
     st.stop()
 
 insights, relations, stats = result.insights, result.relations, result.stats
-st.divider()
+st.markdown(
+    f"<div class='result-head'><h2>ผลการวิเคราะห์</h2>"
+    f"<span class='chip'>{st.session_state.result_name}</span></div>", unsafe_allow_html=True)
 
 if not relations:
     st.warning("ไม่พบความสัมพันธ์ที่ผ่านการตรวจสอบ ลอง: ใช้ประโยคที่สมบูรณ์ขึ้น, ลดความมั่นใจขั้นต่ำ "
@@ -274,7 +297,7 @@ k1.metric("เอนทิตี (โหนด)", insights.get("total_entities",
 k2.metric("ความสัมพันธ์ (เส้น)", insights.get("total_relations", 0), border=True)
 k3.metric("กลุ่มที่เชื่อมกันเอง", insights.get("num_connected_components", 0), border=True,
           help="จำนวนกลุ่มเนื้อหาที่ไม่เชื่อมถึงกันในข้อความจริง (ไม่นับเส้นที่ระบบเชื่อมให้)")
-k4.metric("เวลาที่ใช้", fmt_duration(stats["elapsed"]), border=True)
+k4.metric("เวลาที่ใช้", fmt_duration(stats["elapsed"], short=True), border=True)
 if stats["truncated"]:
     st.caption(f"✂️ วิเคราะห์เฉพาะ {stats['chars']:,} ตัวอักษรแรกของเอกสาร")
 
@@ -309,6 +332,7 @@ with tab_table:
 
     event = st.dataframe(
         df, **STRETCH, hide_index=True, on_select="rerun", selection_mode="single-row",
+        column_order=["ประธาน", "ความสัมพันธ์", "กรรม", "ความมั่นใจ", "ประโยคต้นฉบับ"],
         column_config={
             "ความมั่นใจ": st.column_config.ProgressColumn(min_value=0.0, max_value=1.0, format="%.1f"),
             "ประโยคต้นฉบับ": st.column_config.TextColumn(width="large"),
@@ -353,8 +377,9 @@ with tab_insight:
     top_rel = insights.get("top_relations", [])
     if top_rel:
         st.markdown("**ความสัมพันธ์ที่พบบ่อย**")
-        rel_df = pd.DataFrame(top_rel, columns=["ความสัมพันธ์", "จำนวน"]).set_index("ความสัมพันธ์")
-        st.bar_chart(rel_df, horizontal=True, height=40 * len(rel_df) + 60)
+        rel_df = pd.DataFrame([(name.replace("_", " "), n) for name, n in top_rel],
+                              columns=["ความสัมพันธ์", "จำนวน"]).set_index("ความสัมพันธ์")
+        st.bar_chart(rel_df, horizontal=True, height=40 * len(rel_df) + 60, color="#6366F1")
 
     communities = insights.get("sample_communities", [])
     if communities:
@@ -365,7 +390,9 @@ with tab_insight:
         st.json(insights)
 
 with tab_summary:
-    st.markdown(result.summary or "ไม่สามารถสร้างคำสรุปได้")
+    # LLMs often emit "• a • b" on one line; turn inline bullets into a real Markdown list
+    summary_md = re.sub(r"\s*•\s*", "\n\n- ", result.summary) if result.summary else ""
+    st.markdown(summary_md or "ไม่สามารถสร้างคำสรุปได้")
     st.caption("สรุปโดย LLM จากเนื้อหาต้นฉบับร่วมกับกราฟความรู้ เพื่อลดการบิดเบือน แต่ไม่รับประกันว่าถูกต้อง 100% "
                "ควรตรวจสอบกับต้นฉบับ")
     if result.summary:

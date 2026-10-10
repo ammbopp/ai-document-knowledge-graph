@@ -1,5 +1,6 @@
 # relation_extraction_ai.py
 import re
+import threading
 from functools import lru_cache
 
 import spacy
@@ -44,9 +45,13 @@ _PRONOUNS = {"he", "she", "it", "they", "we", "i", "you", "this", "that"}
 _STOPWORDS = nlp.Defaults.stop_words
 
 
+_nlp_lock = threading.Lock()  # extract_relations may run on several worker threads
+
+
 @lru_cache(maxsize=4096)
 def _parse(text):
-    return nlp(text)
+    with _nlp_lock:
+        return nlp(text)
 
 
 def ask_llm(text):
@@ -199,9 +204,13 @@ def _pick_subject(sentence, relation, a, b):
 
 
 def check_direction(head, relation, tail, sentence):
-    """True if the LLM picks `head` as subject regardless of the order the entities are presented in."""
-    return (_pick_subject(sentence, relation, head, tail) == "A"
-            and _pick_subject(sentence, relation, tail, head) == "B")
+    """
+    False only when the LLM consistently names `tail` as the subject in both presentation orders.
+    Mixed answers (A,A / B,B) just mean position bias, so they do not reject the triple.
+    """
+    first = _pick_subject(sentence, relation, head, tail)    # "B" -> tail is subject
+    second = _pick_subject(sentence, relation, tail, head)   # "A" -> tail is subject
+    return not (first == "B" and second == "A")
 
 
 def evaluate_triplet_cloze(head, relation, tail, source_sentence, threshold=0.6):

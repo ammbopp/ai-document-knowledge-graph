@@ -5,6 +5,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama3")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))  # seconds per request
 LLM_NUM_CTX = int(os.getenv("LLM_NUM_CTX", "8192"))
+LLM_WORKERS = int(os.getenv("LLM_WORKERS", "4"))  # parallel LLM requests (Ollama serves ~4 at once)
 
 RESOLVER_THRESHOLD = 0.85
 MIN_CONFIDENCE = 0.7

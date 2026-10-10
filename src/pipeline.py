@@ -3,9 +3,10 @@ import os
 import shutil
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
-from .config import MIN_CONFIDENCE, RESOLVER_THRESHOLD, WINDOW_OVERLAP, WINDOW_SIZE
+from .config import LLM_WORKERS, MIN_CONFIDENCE, RESOLVER_THRESHOLD, WINDOW_OVERLAP, WINDOW_SIZE
 from .entity_resolution import EntityResolver, resolve_relations
 from .graph_builder import build_graph, visualize_graph
 from .graph_insight import analyze_graph
@@ -14,7 +15,7 @@ from .relation_extraction_ai import extract_relations
 from .summarization import generate_graph_augmented_summary
 from .text_utils import create_sliding_windows, split_sentences
 
-SECONDS_PER_CHUNK = 15  # rough average with llama3 on a laptop, used only for estimates
+SECONDS_PER_CHUNK = 25  # effective seconds per chunk with parallel llama3 requests (estimates only)
 
 
 @dataclass
@@ -74,14 +75,17 @@ def analyze_document(text, nlp, embedder, *, min_confidence=MIN_CONFIDENCE, thre
     chunks = create_sliding_windows(sentences, window_size, overlap)
     emit(10, f"แบ่งเอกสารเป็น {len(sentences)} ประโยค / {len(chunks)} กลุ่ม", True)
 
-    relations = []
+    # Chunks are independent, so run several LLM requests at once; results keep document order
+    per_chunk = [None] * len(chunks)
     t0 = time.time()
-    for i, chunk in enumerate(chunks):
-        relations.extend(extract_relations([chunk]))
-        done = i + 1
-        remaining = (time.time() - t0) / done * (len(chunks) - done)
-        emit(10 + int(70 * done / len(chunks)),
-             f"กำลังสกัดความสัมพันธ์ กลุ่มที่ {done}/{len(chunks)} (เหลือประมาณ {int(remaining)} วินาที)")
+    with ThreadPoolExecutor(max_workers=max(1, LLM_WORKERS)) as pool:
+        futures = {pool.submit(extract_relations, [chunk]): i for i, chunk in enumerate(chunks)}
+        for done, future in enumerate(as_completed(futures), 1):
+            per_chunk[futures[future]] = future.result()
+            remaining = (time.time() - t0) / done * (len(chunks) - done)
+            emit(10 + int(70 * done / len(chunks)),
+                 f"กำลังสกัดความสัมพันธ์ เสร็จแล้ว {done}/{len(chunks)} กลุ่ม (เหลือประมาณ {int(remaining)} วินาที)")
+    relations = [r for chunk_relations in per_chunk for r in chunk_relations]
     usable = [r for r in relations if r.get("confidence", 0.0) >= min_confidence]
     emit(80, f"สกัดได้ {len(usable)} ความสัมพันธ์ที่ผ่านการตรวจสอบ", True)
 

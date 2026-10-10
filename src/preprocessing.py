@@ -1,6 +1,7 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
 
-from .config import COREF_CHUNK_CHARS
+from .config import COREF_CHUNK_CHARS, LLM_WORKERS
 from .llm import generate
 from .text_utils import split_by_chars
 
@@ -40,4 +41,6 @@ def _resolve_chunk(chunk):
 
 def resolve_coreferences_with_llm(text, max_chars=COREF_CHUNK_CHARS):
     """Resolve pronouns chunk by chunk so long documents are not truncated by the context window."""
-    return "\n".join(_resolve_chunk(c) for c in split_by_chars(text, max_chars))
+    chunks = split_by_chars(text, max_chars)
+    with ThreadPoolExecutor(max_workers=max(1, LLM_WORKERS)) as pool:
+        return "\n".join(pool.map(_resolve_chunk, chunks))
