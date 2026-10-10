@@ -1,5 +1,5 @@
 # Core app
-streamlit>=1.40
+streamlit>=1.45
 requests>=2.31
 beautifulsoup4>=4.12
 spacy>=3.7        # then: python -m spacy download en_core_web_sm

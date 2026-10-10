@@ -199,3 +199,39 @@ def test_surname_merges_despite_type_mismatch():
     r.resolve("Koos Bekker", "Person")
     r.resolve("Bekker", "Location")
     assert r.canonical("Bekker") == r.canonical("Koos Bekker")
+
+
+def test_pipeline_helpers():
+    from src.pipeline import estimate_seconds, truncate_at_sentence
+    text = "First sentence here. Second sentence here. Third one is longer than the limit."
+    cut = truncate_at_sentence(text, 45)
+    assert cut.endswith(".") and len(cut) <= 45 and truncate_at_sentence(text, 500) == text
+    assert estimate_seconds("x" * 1200) > estimate_seconds("x" * 120) >= 1
+
+
+def test_ollama_health_reports_missing_model(monkeypatch):
+    from src import llm
+
+    class Resp:
+        def raise_for_status(self): pass
+        def json(self): return {"models": [{"name": "mistral:latest"}]}
+
+    monkeypatch.setattr(llm.requests, "get", lambda *a, **k: Resp())
+    ok, msg = llm.health()
+    assert not ok and "ollama pull" in msg
+    monkeypatch.setattr(llm, "LLM_MODEL", "mistral")
+    assert llm.health()[0]
+
+    def boom(*a, **k): raise ConnectionError
+    monkeypatch.setattr(llm.requests, "get", boom)
+    assert not llm.health()[0]
+
+
+def test_app_renders_and_loads_sample():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file("app.py", default_timeout=60).run()
+    assert not at.exception
+    labels = [b.label for b in at.button]
+    sample = next(label for label in labels if label.startswith("📄 "))
+    at.button[labels.index(sample)].click().run()
+    assert not at.exception and any(m.label == "จำนวนคำ" for m in at.metric)

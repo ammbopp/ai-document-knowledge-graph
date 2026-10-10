@@ -82,6 +82,18 @@ def build_graph(relations):
 
     return G
 
+# Light-theme node colours (also used by the web UI legend)
+NODE_COLORS = {
+    "Person": {"background": "#3b82f6", "border": "#2563eb"},
+    "Organization": {"background": "#10b981", "border": "#059669"},
+    "Location": {"background": "#f59e0b", "border": "#d97706"},
+    "Time": {"background": "#ec4899", "border": "#db2777"},
+    "Work": {"background": "#8b5cf6", "border": "#7c3aed"},
+    "Entity": {"background": "#94a3b8", "border": "#64748b"},
+    "Topic": {"background": "#ef4444", "border": "#dc2626"},
+}
+
+
 def visualize_graph(G, output_file="knowledge_graph.html"):
     # ==========================================
     # 1. Base Setup (เริ่มต้นด้วย Light Theme)
@@ -97,14 +109,7 @@ def visualize_graph(G, output_file="knowledge_graph.html"):
     )
 
     # สีตั้งต้น (Light Theme)
-    COLOR_MAP = {
-        "Person": {"background": "#3b82f6", "border": "#2563eb"},       
-        "Organization": {"background": "#10b981", "border": "#059669"}, 
-        "Location": {"background": "#f59e0b", "border": "#d97706"},     
-        "Work": {"background": "#8b5cf6", "border": "#7c3aed"},         
-        "Entity": {"background": "#94a3b8", "border": "#64748b"},       
-        "Topic": {"background": "#ef4444", "border": "#dc2626"}         
-    }
+    COLOR_MAP = NODE_COLORS
 
     degrees = dict(G.degree)
 
@@ -627,6 +632,7 @@ def visualize_graph(G, output_file="knowledge_graph.html"):
                     "Organization": { background: "#10b981", border: "#059669" },
                     "Location": { background: "#f59e0b", border: "#d97706" },
                     "Work": { background: "#8b5cf6", border: "#7c3aed" },
+                    "Time": { background: "#ec4899", border: "#db2777" },
                     "Entity": { background: "#94a3b8", border: "#64748b" },
                     "Topic": { background: "#ef4444", border: "#dc2626" }
                 },
@@ -640,6 +646,7 @@ def visualize_graph(G, output_file="knowledge_graph.html"):
                     "Organization": { background: "#00E676", border: "#00E676" }, // Neon Green
                     "Location": { background: "#FFEA00", border: "#FFEA00" },     // Yellow
                     "Work": { background: "#FF9100", border: "#FF9100" },         // Orange
+                    "Time": { background: "#F472B6", border: "#F472B6" },         // Pink
                     "Entity": { background: "#B0BEC5", border: "#B0BEC5" },       // Silver
                     "Topic": { background: "#FF3366", border: "#FF3366" }         // Neon Pink
                 },

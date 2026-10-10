@@ -4,16 +4,16 @@ import pathlib
 
 import spacy
 
-from .config import MIN_CONFIDENCE, RESOLVER_THRESHOLD
-from .entity_resolution import EntityResolver, resolve_relations
-from .graph_builder import build_graph, visualize_graph
-from .graph_insight import analyze_graph
-from .preprocessing import resolve_coreferences_with_llm
-from .relation_extraction_ai import extract_relations
-from .text_utils import create_sliding_windows, split_sentences
+from .entity_resolution import load_embedder
+from .pipeline import analyze_document
 
 DEFAULT_PATH = pathlib.Path("data/sample_01.txt")
 OUTPUT_PATH = pathlib.Path("output/knowledge_graph.html")
+
+
+def _log(pct, msg, done):
+    if done:
+        print(f"[{pct:3d}%] {msg}")
 
 
 def main(path=DEFAULT_PATH):
@@ -21,36 +21,21 @@ def main(path=DEFAULT_PATH):
     if not path.exists():
         raise SystemExit(f"❌ File not found: {path}")
 
-    original_text = path.read_text(encoding="utf-8").strip()
+    text = path.read_text(encoding="utf-8").strip()
     print(f"📄 Loaded document: {path.name}")
 
-    print("🔍 Running coreference resolution (LLM)...")
-    document_text = resolve_coreferences_with_llm(original_text)
+    result = analyze_document(text, spacy.load("en_core_web_sm"), load_embedder(), on_progress=_log)
 
-    nlp = spacy.load("en_core_web_sm")
-    sentences = split_sentences(nlp, document_text)
-    chunks = create_sliding_windows(sentences)
-    print(f"✂️ {len(sentences)} sentences -> {len(chunks)} chunks")
-
-    relations = extract_relations(chunks)
-    usable = [r for r in relations if r.get("confidence", 0.0) >= MIN_CONFIDENCE]
-
-    resolver = EntityResolver(threshold=RESOLVER_THRESHOLD)
-    resolved = resolve_relations(usable, resolver)
-
-    print("\n=== FINAL RELATIONS (AFTER RESOLUTION) ===")
-    for r in resolved:
+    print("\n=== FINAL RELATIONS ===")
+    for r in result.relations:
         print(f"{r['head']} -> {r['relation']} -> {r['tail']}")
-
-    G = build_graph(resolved)
-    print(f"\n🧠 Nodes: {G.number_of_nodes()}  Edges: {G.number_of_edges()}")
-
     print("\n=== GRAPH INSIGHTS ===")
-    for k, v in analyze_graph(G).items():
+    for k, v in result.insights.items():
         print(f"{k}: {v}")
 
     OUTPUT_PATH.parent.mkdir(exist_ok=True)
-    visualize_graph(G, output_file=str(OUTPUT_PATH))
+    OUTPUT_PATH.write_text(result.html, encoding="utf-8")
+    print(f"\n💾 Graph saved to {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
