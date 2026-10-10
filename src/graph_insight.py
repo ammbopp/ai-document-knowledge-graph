@@ -1,22 +1,27 @@
 import networkx as nx
 from collections import Counter
 
-def analyze_graph(G: nx.DiGraph):
+def analyze_graph(G: nx.MultiDiGraph):
     """
     Thesis-level analysis of Knowledge Graph
     """
     insights = {}
 
     # =========================
-    # 1. Filter low-quality edges
+    # 1. Collapse to a simple DiGraph of REAL edges (virtual connectors are excluded so they
+    #    do not inflate density/degree or hide disconnected components)
     # =========================
     Gf = nx.DiGraph()
     for u, v, data in G.edges(data=True):
-        if data.get("quality", "medium") != "low":
-            Gf.add_edge(u, v, **data)
+        if data.get("type") == "virtual":
+            continue
+        if Gf.has_edge(u, v):
+            Gf[u][v]["relations"].append(data.get("relation"))
+        else:
+            Gf.add_edge(u, v, relations=[data.get("relation")])
 
     insights["total_entities"] = Gf.number_of_nodes()
-    insights["total_relations"] = Gf.number_of_edges()
+    insights["total_relations"] = sum(len(d["relations"]) for _, _, d in Gf.edges(data=True))
 
     if Gf.number_of_nodes() == 0:
         return insights
@@ -43,11 +48,7 @@ def analyze_graph(G: nx.DiGraph):
     # =========================
     # 3. Relation Distribution
     # =========================
-    relations = []
-    for _, _, data in Gf.edges(data=True):
-        rel = data.get("relation") or data.get("relation_text")
-        if rel:
-            relations.append(rel)
+    relations = [rel for _, _, data in Gf.edges(data=True) for rel in data["relations"] if rel]
 
     relation_count = Counter(relations)
     insights["top_relations"] = relation_count.most_common(5)

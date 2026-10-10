@@ -1,7 +1,11 @@
 # relation_extraction_ai.py
 import re
-import requests
+from functools import lru_cache
+
 import spacy
+
+from .llm import generate
+from .ontology import ENTITY_TYPES
 
 nlp = spacy.load("en_core_web_sm")
 
@@ -31,185 +35,372 @@ STRICT INSTRUCTION: Extract triplets ONLY from the input text provided below. Do
 Input: {}
 Output:"""
 
+
+
 # ==========================================
-# 2. Helper Functions (นำ \n\n ออกจาก stop tokens และกรองขยะบรรทัดต่อบรรทัด)
+# 2. Helper Functions
 # ==========================================
+_PRONOUNS = {"he", "she", "it", "they", "we", "i", "you", "this", "that"}
+_STOPWORDS = nlp.Defaults.stop_words
+
+
+@lru_cache(maxsize=4096)
+def _parse(text):
+    return nlp(text)
+
+
 def ask_llm(text):
-    input_text = PROMPT.format(text)
-    payload = {
-        "model": "llama3",
-        "prompt": input_text,
-        "stream": False,
-        "options": {
-            "temperature": 0.0, 
-            "num_predict": 300,
-            # 🔥 ถอด "\n\n" ออก เพื่อให้โมเดลสามารถเคาะบรรทัดเปล่าก่อนส่งคำตอบได้โดยไม่โดนสั่งตัดจบ
-            "stop": ["Input:", "=== END"] 
-        }
-    }
+    """Return the model's triples as 'S | V | O ### S | V | O' (empty string on failure)."""
     try:
-        response = requests.post("http://localhost:11434/api/generate", json=payload)
-        response.raise_for_status()
-        result = response.json().get("response", "").strip()
-        
-        # ล้างขยะสัญลักษณ์ทั่วไป
-        result = result.replace("[", "").replace("]", "").replace("'", "").replace('"', "").replace("`", "").strip()
-        
-        # 🛡️ Dynamic Post-Processing: ถ้ามีบรรทัดบทสนทนาหลุดมา ให้กรองเก็บเฉพาะบรรทัดที่มีสัญลักษณ์ท่อ '|' เท่านั้น
-        lines = result.split('\n')
-        clean_lines = [line.strip() for line in lines if "|" in line]
-        
-        return " ".join(clean_lines)
+        result = generate(PROMPT.format(text), num_predict=300, stop=["Input:", "=== END"])
     except Exception as e:
         print(f"\n❌ Ollama Error: {e}")
         return ""
 
+    # Strip list/markup noise but keep apostrophes and quotes inside names (O'Brien, Trump's)
+    result = result.replace("[", "").replace("]", "").replace("`", "")
+
+    # Keep only lines containing triples; each line may hold several '###'-separated facts
+    facts = []
+    for line in result.split("\n"):
+        if "|" in line:
+            facts.extend(f.strip() for f in line.split("###") if f.strip())
+    return " ### ".join(facts)
+
+
 # ==========================================
-# 3. Dynamic Structural Filters (ตรวจด้วยหลักไวยากรณ์)
+# 3. Dynamic Structural Filters
 # ==========================================
 def is_valid_entity(entity):
-    ent_clean = entity.strip()
-    if not ent_clean or ent_clean.isdigit() or len(ent_clean) < 2: 
-        return False
-        
-    if ent_clean.lower() in {"he", "she", "it", "they", "we", "i", "you", "this", "that"}: 
-        return False
-        
-    doc = nlp(ent_clean)
-    
-    # กฎข้อที่ 1: ต้องมีคำนาม หรือคำสรรพนามประกอบอยู่จริง ไม่ปล่อยให้เป็นคำเชื่อมลอยๆ
-    if not any(token.pos_ in ["NOUN", "PROPN", "PRON"] for token in doc):
-        return False
-        
-    # กฎข้อที่ 2: ห้ามมีกริยาแท้/กริยาช่วยผสมอยู่ในตัวโหนด (สกัดพวก Clause ย่อยออก)
-    if any(token.pos_ in ["VERB", "AUX"] for token in doc):
+    ent_clean = entity.strip().strip("\"'")
+    is_year = ent_clean.isdigit() and 1800 <= int(ent_clean) <= 2100
+    if not ent_clean or (ent_clean.isdigit() and not is_year) or len(ent_clean) < 2:
         return False
 
-    # กฎข้อที่ 3: คำสุดท้ายของโหนด ห้ามลงท้ายด้วยคำบุพบทหรือคำเชื่อม (แก้ปัญหาโหนดค้างติ่ง)
-    if doc[-1].pos_ in ["ADP", "CCONJ", "SCONJ", "PART"]:
+    if is_year:
+        return True
+
+    if ent_clean.lower() in _PRONOUNS:
         return False
-        
+
+    doc = _parse(ent_clean)
+
+    # Rule 1: must contain a noun / proper noun / pronoun. spaCy tags unknown capitalised
+    # names ("Anthropic") as ADJ/X in isolation, so those count as proper nouns.
+    def _is_nominal(t):
+        return t.pos_ in ("NOUN", "PROPN", "PRON") or (t.pos_ in ("ADJ", "X") and t.text[:1].isupper())
+
+    if not any(_is_nominal(t) for t in doc):
+        return False
+
+    # Rule 2: no clauses inside a node. spaCy often tags names as VERB when parsing
+    # them in isolation, so only reject AUX or verbs inside a lower-case phrase.
+    if any(t.pos_ == "AUX" for t in doc):
+        return False
+    if any(t.pos_ == "VERB" and not t.text[:1].isupper() for t in doc):
+        return False
+
+    # Rule 3: must not end with a preposition/conjunction (dangling node)
+    if doc[-1].pos_ in ("ADP", "CCONJ", "SCONJ", "PART") and not doc[-1].text[:1].isupper():
+        return False
+
     return True
+
+
+_SPEECH_VERBS = {
+    "say", "says", "said", "tell", "tells", "told", "claim", "claims", "claimed", "state", "states",
+    "stated", "testify", "testified", "add", "adds", "added", "note", "notes", "noted", "explain",
+    "explains", "explained", "argue", "argues", "argued", "warn", "warns", "warned", "report",
+    "reports", "reported", "reply", "replied", "insist", "insists", "insisted", "suggest",
+    "suggests", "suggested", "assert", "asserted", "ask", "asks", "asked",
+}
+
 
 def is_valid_relation(relation):
-    rel_clean = relation.strip().lower()
-    if len(rel_clean) < 2 or len(rel_clean.split()) > 5: 
+    words = relation.strip().lower().split()
+    if len(relation.strip()) < 2 or len(words) > 5:
+        return False
+    # Speech wrappers ("X said ...") are not facts
+    if words[0] in _SPEECH_VERBS:
         return False
     return True
 
-def is_hallucination(head, tail, original_text):
-    text_lower = original_text.lower()
-    head_clean = head.lower().strip()
-    tail_clean = tail.lower().strip()
-    if head_clean.split()[0] not in text_lower or tail_clean.split()[0] not in text_lower: 
-        return True 
-    return False
+
+def is_hallucination(head, tail, original_text, min_overlap=0.5):
+    """True if an entity's content words mostly do not appear (as whole words) in the source."""
+    source_words = set(re.findall(r"[\w'-]+", original_text.lower()))
+
+    def grounded(entity):
+        words = [w for w in re.findall(r"[\w'-]+", entity.lower()) if w not in _STOPWORDS]
+        if not words:
+            return False
+        return sum(w in source_words for w in words) / len(words) >= min_overlap
+
+    return not (grounded(head) and grounded(tail))
+
 
 def parse_triples(text):
     triples = []
-    facts = [f.strip() for f in text.split("###") if f.strip()]
+    facts = [f.strip() for f in re.split(r"###|\n", text) if f.strip()]
     for fact in facts:
         parts = [p.strip() for p in fact.split("|") if p.strip()]
         if len(parts) == 3:
             triples.append((parts[0], parts[1], parts[2]))
     return triples
 
+
+@lru_cache(maxsize=2048)
+def relation_key(relation):
+    """Tense/aux-insensitive key: 'will be causing' and 'cause' compare equal."""
+    lemmas = [t.lemma_.lower() for t in _parse(relation.strip()) if t.pos_ != "AUX" and not t.is_punct]
+    return " ".join(lemmas) or relation.strip().lower()
+
+
 def deduplicate(relations):
     seen = set()
     unique = []
     for r in relations:
-        key = (r["head"].lower(), r["relation"].lower(), r["tail"].lower())
+        key = (r["head"].lower(), relation_key(r["relation"]), r["tail"].lower())
         if key not in seen:
             seen.add(key)
             unique.append(r)
     return unique
 
+
+def infer_entity_type(entity, doc):
+    """Map an entity to an ontology type using spaCy NER over its source text."""
+    target = entity.lower().strip()
+    for ent in doc.ents:
+        if ent.label_ not in ENTITY_TYPES:
+            continue
+        text = ent.text.lower().strip()
+        if text == target or target in text:
+            return ENTITY_TYPES[ent.label_]
+        # Entity = NER span + at most one extra word ("President Donald Trump"), not a longer phrase
+        if text in target and len(target.split()) - len(text.split()) <= 1:
+            return ENTITY_TYPES[ent.label_]
+    return "Entity"
+
+
 # ==========================================
-# 4. Directional & Substance Gatekeeper (ด่านตรวจความถูกต้องเชิงตรรกะ)
+# 4. Directional & Substance Gatekeeper
 # ==========================================
+_DIRECTION_PROMPT = """Text: "{sentence}"
+Relation phrase: "{relation}"
+Entities: A = {a}; B = {b}
+In this text, which entity is the SUBJECT of the relation phrase (the one that does it or is described by it) and which is the OBJECT? Answer with ONLY the letter of the SUBJECT: A or B.
+Answer:"""
+
+
+def _pick_subject(sentence, relation, a, b):
+    out = generate(_DIRECTION_PROMPT.format(sentence=sentence, relation=relation, a=a, b=b), num_predict=3)
+    match = re.search(r"\b([AB])\b", out.upper())
+    return match.group(1) if match else None
+
+
+def check_direction(head, relation, tail, sentence):
+    """True if the LLM picks `head` as subject regardless of the order the entities are presented in."""
+    return (_pick_subject(sentence, relation, head, tail) == "A"
+            and _pick_subject(sentence, relation, tail, head) == "B")
+
+
 def evaluate_triplet_cloze(head, relation, tail, source_sentence, threshold=0.6):
     """
-    ด่านตรวจความถูกต้องเชิงความหมายและทิศทางประธาน-กรรม (Directional & Structural Gatekeeper)
+    LLM gate for direction and substance. Returns (is_valid, confidence in [0, 1]).
+    The model rates the triplet 0-10; confidence = rating / 10 and the triplet passes when
+    confidence >= threshold. A failed call rejects the triplet (fail closed).
     """
-    prompt = f"""You are a strict validation logic gate for Knowledge Graphs. Verify the extracted triplet against the text.
+    prompt = f"""You are a strict validation logic gate for Knowledge Graphs. Rate the extracted triplet against the text.
 
 Text: "{source_sentence}"
 Triplet: [{head}] ---> ({relation}) ---> [{tail}]
 
 CRITICAL VALIDATION RULES:
-1. DIRECTIONAL CHECK: Does [{head}] actually initiate or perform the action ({relation}) upon [{tail}] in the text? If the text states or implies the reverse (i.e., [{tail}] did it to [{head}]), it is an INVERSION and completely INVALID.
-2. SUBSTANCE CHECK: Is the relation a real factual event, or is it just a speech tag like "told", "said", "testified"? Speech tag triplets are strictly INVALID.
+1. DIRECTIONAL CHECK: Does [{head}] actually initiate or perform the action ({relation}) upon [{tail}] in the text? If the text states or implies the reverse, it is an INVERSION and must score 0.
+2. SUBSTANCE CHECK: Is the relation a real factual event, or just a speech tag like "told", "said", "testified"? Speech tags must score 0.
+3. FAITHFULNESS: Is the triplet explicitly supported by the text? Unsupported or invented facts must score 0.
 
-Reply with ONLY 'VALID' if it passes both rules perfectly.
-Reply with ONLY 'INVALID' if there is an inversion, speech noise, or factual error.
-Answer:"""
-    
-    payload = {
-        "model": "llama3",
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": 0.0}
-    }
-    
+Reply with ONLY an integer from 0 (invalid) to 10 (perfectly valid).
+Score:"""
+
     try:
-        response = requests.post("http://localhost:11434/api/generate", json=payload)
-        response.raise_for_status()
-        result = response.json().get("response", "").strip().upper()
-        
-        if "VALID" in result and "INVALID" not in result:
-            return True, 1.0
-        else:
-            print(f"🚫 [Structural Filtered: REJECTED] {head} -> {relation} -> {tail}")
+        result = generate(prompt, num_predict=8)
+        # The 0-10 score cannot tell direction apart (both orders score alike), so ask a
+        # forced-choice question in both orders; the head must be picked as subject both times.
+        if not check_direction(head, relation, tail, source_sentence):
+            print(f"↔️  [Direction rejected] {head} -> {relation} -> {tail}")
             return False, 0.0
-            
     except Exception as e:
         print(f"⚠️ Evaluator Error: {e}")
-        return True, 0.5
-        
+        return False, 0.0
+
+    match = re.search(r"\d+", result)
+    if match:
+        confidence = min(int(match.group()), 10) / 10
+    else:
+        confidence = 1.0 if result.upper().startswith("VALID") else 0.0
+
+    if confidence < threshold:
+        print(f"🚫 [Structural Filtered: REJECTED] {head} -> {relation} -> {tail}")
+        return False, confidence
+    return True, confidence
+
+
 # ==========================================
 # 5. Main Extraction Function
 # ==========================================
+_ARTICLE = re.compile(r"^(the|a|an)\s+", re.IGNORECASE)
+_POSSESSOR_PREFIX = re.compile(r"^.+?(?:['’]s|(?<=s)['’])\s+(?=\S)")
+_POSSESSIVE_SUFFIX = re.compile(r"(?:['’]s|(?<=s)['’])$")
+
+_PASSIVE_MARKERS = {"is", "are", "was", "were", "be", "been", "being", "get", "gets", "got", "gotten"}
+_PASSIVE_AUX = _PASSIVE_MARKERS | {"has", "have", "had", "will", "would", "can", "could", "may", "might", "must", "should"}
+# Irregular past participles that are not past-tense forms (so "stood by" stays active)
+_IRREGULAR_PARTICIPLES = {
+    "built", "written", "led", "held", "made", "taken", "given", "sold", "bought", "won", "known",
+    "found", "chosen", "driven", "shown", "seen", "done", "begun", "broken", "caught", "paid",
+    "set", "put", "run", "struck", "hit", "cut", "sent", "lost", "kept", "left", "brought",
+}
+_TIME_PREPS = r"on|in|by|at|since|until|from|during|before|after"
+
+
+def clean_entity_name(name):
+    """Strip articles and possessives: "Trump's previous taxes" -> "previous taxes", "Trump's" -> "Trump"."""
+    name = _ARTICLE.sub("", name.strip())
+    name = _POSSESSOR_PREFIX.sub("", name)
+    name = _POSSESSIVE_SUFFIX.sub("", name).strip()
+    return _ARTICLE.sub("", name)
+
+
+def normalize_passive(head, relation, tail):
+    """
+    Turn a passive triple into its active form by swapping the arguments:
+    (White House, contacted by, BBC) -> (BBC, contacted, White House).
+    """
+    words = relation.strip().split()
+    if len(words) < 2 or words[-1].lower() != "by":
+        return head, relation, tail
+
+    body = words[:-1]
+    had_aux = False
+    while body and body[0].lower() in _PASSIVE_AUX:
+        had_aux = had_aux or body[0].lower() in _PASSIVE_MARKERS
+        body = body[1:]
+    if not body:
+        return head, relation, tail
+
+    verb = body[0].lower()
+    is_participle = verb in _IRREGULAR_PARTICIPLES or (verb.endswith("ed") and len(verb) > 3)
+    if not (had_aux or is_participle):
+        return head, relation, tail
+    return tail, " ".join(body), head
+
+
+def is_bare_passive(relation):
+    """'has been suspended' (passive, no 'by' agent, no preposition): the direction is unreliable."""
+    words = relation.strip().lower().split()
+    if len(words) < 2 or words[-1] == "by":
+        return False
+    has_marker = any(w in _PASSIVE_MARKERS for w in words[:-1])
+    last = words[-1]
+    return has_marker and (last.endswith("ed") or last in _IRREGULAR_PARTICIPLES)
+
+
+def split_trailing_date(entity):
+    """
+    If the entity ends with a DATE (per spaCy NER) and something else precedes it, return
+    (rest, preposition, date_text); otherwise None. "force on Tuesday, 24 February" ->
+    ("force", "on", "Tuesday, 24 February").
+    """
+    stripped = entity.rstrip(" .,")
+    dates = [e for e in _parse(stripped).ents if e.label_ == "DATE"]
+    if not dates or dates[-1].end_char < len(stripped):
+        return None
+    # Merge adjacent DATE spans ("Tuesday" + ", " + "24 February") into one date expression
+    start = dates[-1].start_char
+    for prev in reversed(dates[:-1]):
+        if not stripped[prev.end_char:start].strip(" ,"):
+            start = prev.start_char
+        else:
+            break
+    date_text = stripped[start:]
+    rest = stripped[:start].strip(" ,")
+    prep_match = re.search(rf"\b({_TIME_PREPS})$", rest, re.IGNORECASE)
+    prep = "on"
+    if prep_match:
+        prep = prep_match.group(1).lower()
+        rest = rest[:prep_match.start()].strip(" ,")
+    if not rest or not is_valid_entity(rest):
+        return None
+    return rest, prep, date_text
+
+
+def find_grounding_sentence(source_doc, head, tail):
+    """First sentence of the chunk that contains both entities, or None (cross-sentence triples are dropped)."""
+    for sent in source_doc.sents:
+        if not is_hallucination(head, tail, sent.text):
+            return sent.text.strip()
+    return None
+
+
 def extract_relations(sentences):
-    print("🔥 extract_relations CALLED (Ollama Llama3 - FIXED)")
+    print("🔥 extract_relations CALLED (Ollama)")
     relations = []
 
     for sent in sentences:
-        if len(sent) < 10: continue
+        if len(sent) < 10:
+            continue
 
         try:
             output = ask_llm(sent)
-            if output:
-                print("DEBUG Output:")
-                # ใช้เครื่องหมาย ### ในการหั่นข้อความออกมาพิมพ์ทีละบรรทัด
-                for fact in output.split("###"):
-                    if fact.strip():
-                        print(f"  {fact.strip()}")
-
-            if not output: 
+            if not output:
                 continue
 
-            triples = parse_triples(output)
+            print("DEBUG Output:")
+            for fact in output.split("###"):
+                if fact.strip():
+                    print(f"  {fact.strip()}")
 
-            for head, rel_text, tail in triples:
-                head = re.sub(r'^(the|a|an)\s+', '', head.strip(), flags=re.IGNORECASE)
-                tail = re.sub(r'^(the|a|an)\s+', '', tail.strip(), flags=re.IGNORECASE)
+            source_doc = _parse(sent)
 
-                if not is_valid_entity(head) or not is_valid_entity(tail): continue
-                if not is_valid_relation(rel_text): continue
-                if is_hallucination(head, tail, sent): continue
-                if head.lower() == tail.lower(): continue
+            for head, rel_text, tail in parse_triples(output):
+                head, rel_text, tail = normalize_passive(
+                    clean_entity_name(head), rel_text.strip(), clean_entity_name(tail))
 
-                is_valid, confidence_score = evaluate_triplet_cloze(head, rel_text, tail, sent)
+                if not is_valid_entity(head) or not is_valid_entity(tail):
+                    continue
+                if not is_valid_relation(rel_text) or is_bare_passive(rel_text):
+                    continue
+                if head.lower() == tail.lower():
+                    continue
+                # Both entities must appear in ONE sentence; verify and cite against that sentence only
+                evidence = find_grounding_sentence(source_doc, head, tail)
+                if evidence is None:
+                    continue
+
+                is_valid, confidence_score = evaluate_triplet_cloze(head, rel_text, tail, evidence)
                 if not is_valid:
                     continue
 
-                relations.append({
-                    "head": head,
-                    "relation": rel_text,
-                    "tail": tail,
-                    "source_sentence": sent,
+                record = {
+                    "source_sentence": evidence,
                     "confidence": confidence_score,
-                    "method": "Ollama_Llama3_Factual_Verifier"
+                    "method": "Ollama_Factual_Verifier",
+                }
+
+                # Separate a trailing date into its own Time node: (force, on, Tuesday)
+                date_part = split_trailing_date(tail)
+                if date_part:
+                    tail, prep, date_text = date_part
+                    relations.append({
+                        **record, "head": tail, "relation": f"occurs {prep}", "tail": date_text,
+                        "head_type": infer_entity_type(tail, source_doc), "tail_type": "Time",
+                    })
+
+                relations.append({
+                    **record, "head": head, "relation": rel_text, "tail": tail,
+                    "head_type": infer_entity_type(head, source_doc),
+                    "tail_type": infer_entity_type(tail, source_doc),
                 })
 
         except Exception as e:

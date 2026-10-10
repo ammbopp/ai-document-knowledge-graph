@@ -1,12 +1,19 @@
-transformers
-torch
-sentencepiece
-spacy
-networkx
-pyvis
+# Core app
+streamlit>=1.40
+requests>=2.31
+beautifulsoup4>=4.12
+spacy>=3.7        # then: python -m spacy download en_core_web_sm
+networkx>=3.2
+pyvis>=0.3.2
+numpy>=1.26
+pandas>=2.1
+sentence-transformers>=3.0
+
+# Evaluation scripts only
+scikit-learn>=1.4
+datasets
+rouge-score
 tqdm
-matplotlib
-pandas
-numpy
-scikit-learn
-seaborn
+
+# Tests
+pytest>=8

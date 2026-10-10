@@ -1,6 +1,10 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
-.graph.html
 .cache/
 .env
+.DS_Store
+graph.html
+output/
+experiment_*.csv

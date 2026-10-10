@@ -1,16 +1,11 @@
 import spacy
 import re
 
+from .ontology import ENTITY_TYPES
+
 nlp = spacy.load("en_core_web_sm")
 
-# Ontology mapping (ใช้เขียนในบทที่ 3 ได้)
-ENTITY_TYPE_MAP = {
-    "ORG": "Organization",
-    "PERSON": "Person",
-    "GPE": "Location",
-    "DATE": "Time",
-    "WORK_OF_ART": "Work"
-}
+ENTITY_TYPE_MAP = ENTITY_TYPES
 
 def normalize_entity(text: str) -> str:
     text = text.strip()
