@@ -1,7 +1,12 @@
 [theme]
-primaryColor = "#6366F1"
 font = "sans serif"
-baseRadius = "large"
+baseRadius = "small"
+
+[theme.light]
+primaryColor = "#2b3138"
+
+[theme.dark]
+primaryColor = "#d7dbe0"
 
 [client]
 toolbarMode = "minimal"

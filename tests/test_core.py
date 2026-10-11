@@ -232,6 +232,17 @@ def test_app_renders_and_loads_sample():
     at = AppTest.from_file("app.py", default_timeout=60).run()
     assert not at.exception
     labels = [b.label for b in at.button]
-    sample = "ใช้ตัวอย่างนี้"
+    sample = "ใช้"
     at.button[labels.index(sample)].click().run()
     assert not at.exception and any(m.label == "จำนวนคำ" for m in at.metric)
+
+
+def test_palettes_are_valid_hex_and_drive_css_vars():
+    import re
+    from src.themes import DEFAULT_PALETTE, PALETTES, accent, css_vars
+    assert DEFAULT_PALETTE in PALETTES and len(PALETTES) >= 5
+    for light, dark in PALETTES.values():
+        assert re.fullmatch(r"#[0-9a-f]{6}", light) and re.fullmatch(r"#[0-9a-f]{6}", dark)
+    assert accent(DEFAULT_PALETTE) != accent(DEFAULT_PALETTE, dark=True)
+    assert "--accent:" + accent(DEFAULT_PALETTE) in css_vars(DEFAULT_PALETTE)
+    assert css_vars("unknown-name")  # falls back to the default palette

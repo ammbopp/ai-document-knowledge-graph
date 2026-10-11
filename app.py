@@ -24,26 +24,11 @@ from src.entity_resolution import load_embedder
 from src.graph_builder import NODE_COLORS
 from src.llm import health
 from src.pipeline import analyze_document, estimate_seconds
+from src.themes import DEFAULT_PALETTE, PALETTES, accent, css_vars
 from src.web_fetch import decode_upload, fetch_text_from_url
 
-st.set_page_config(page_title="AI Knowledge Graph", layout="wide", page_icon="🧠",
+st.set_page_config(page_title="Knowledge Graph", layout="wide", page_icon=":material/hub:",
                    initial_sidebar_state="expanded")
-
-_css = pathlib.Path("assets/style.css")
-if _css.exists():
-    st.markdown(f"<style>{_css.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-HERO_SVG = """<svg viewBox="0 0 300 190" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round">
-  <g opacity=".55"><path d="M60 100 L130 45 L215 70 L240 140 L150 150 L60 100 Z"/>
-  <path d="M130 45 L150 150 M215 70 L60 100"/></g>
-  <g fill="white" stroke="none">
-    <circle cx="60" cy="100" r="11" opacity=".95"/><circle cx="130" cy="45" r="15"/>
-    <circle cx="215" cy="70" r="10" opacity=".85"/><circle cx="240" cy="140" r="13" opacity=".9"/>
-    <circle cx="150" cy="150" r="9" opacity=".8"/><circle cx="270" cy="40" r="6" opacity=".6"/>
-  </g>
-  <path d="M215 70 L270 40" opacity=".55"/>
-</svg>"""
-HERO_SVG = re.sub(r">\s+<", "><", HERO_SVG)  # Markdown ends an HTML block at blank lines
 
 # Streamlit renamed use_container_width -> width="stretch" and deprecated components.html -> st.iframe
 STRETCH = ({"width": "stretch"} if "width" in inspect.signature(st.button).parameters
@@ -57,7 +42,7 @@ def show_html(html, height):
         components.html(html, height=height, scrolling=False)
 
 
-PASTE, UPLOAD, URL = "📝 วางข้อความ", "📂 อัปโหลด .txt", "🌐 จากลิงก์ข่าว"
+PASTE, UPLOAD, URL = "วางข้อความ", "อัปโหลดไฟล์ .txt", "ลิงก์ข่าว"
 NODE_LABELS = {
     "Person": "บุคคล", "Organization": "องค์กร", "Location": "สถานที่", "Time": "เวลา",
     "Work": "ผลงาน", "Entity": "อื่นๆ", "Topic": "หัวข้อหลัก (ศูนย์กลาง)",
@@ -67,8 +52,23 @@ SAMPLE_DIR = pathlib.Path("data")
 for key, default in {
     "input_method": PASTE, "result": None, "result_hash": "", "result_name": "document",
     "url_text": "", "url_text_for": "", "url_error": "", "sample_name": "", "sample_text": "",
+    "palette": DEFAULT_PALETTE,
 }.items():
     st.session_state.setdefault(key, default)
+
+
+def is_dark_theme():
+    try:
+        return st.context.theme.type == "dark"
+    except Exception:
+        return False
+
+
+DARK = is_dark_theme()
+_css = pathlib.Path("assets/style.css")
+if _css.exists():
+    st.markdown(f"<style>{css_vars(st.session_state.palette, DARK)}\n{_css.read_text(encoding='utf-8')}</style>",
+                unsafe_allow_html=True)
 
 
 # ==========================================
@@ -110,7 +110,7 @@ def text_hash(text):
 
 def fmt_duration(seconds, short=False):
     seconds = int(seconds)
-    if short:  # compact form for metric cards: 2:16 นาที
+    if short:  # compact form for metric values: 2:16 นาที
         return f"{seconds // 60}:{seconds % 60:02d} นาที" if seconds >= 60 else f"{seconds} วินาที"
     return f"{seconds // 60} นาที {seconds % 60} วินาที" if seconds >= 60 else f"{seconds} วินาที"
 
@@ -120,17 +120,27 @@ def fmt_duration(seconds, short=False):
 # ==========================================
 ollama_ok, ollama_msg = check_ollama()
 with st.sidebar:
-    st.markdown("<div class='brand'><span class='logo'>🧠</span>AI Knowledge Graph</div>",
+    st.markdown("<div class='brand'>Knowledge Graph<small>document → relations</small></div>",
                 unsafe_allow_html=True)
-    st.markdown("<div class='eyebrow'>สถานะระบบ</div>", unsafe_allow_html=True)
-    if ollama_ok:
-        st.success(ollama_msg, icon="🟢")
-    else:
-        st.error(ollama_msg, icon="🔴")
-        if st.button("ตรวจสอบอีกครั้ง", **STRETCH):
+
+    st.markdown("<div class='label'>สถานะ</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='status'><span class='dot {'ok' if ollama_ok else 'bad'}'></span>"
+                f"{ollama_msg.split(' — ')[0]}</div>", unsafe_allow_html=True)
+    if not ollama_ok:
+        st.caption(ollama_msg.split(" — ")[-1])
+        if st.button("ตรวจสอบอีกครั้ง", icon=":material/refresh:", **STRETCH):
             check_ollama.clear()
             st.rerun()
 
+    st.markdown("<div class='label'>ธีมสี</div>", unsafe_allow_html=True)
+    st.selectbox("ธีมสี", list(PALETTES), key="palette", label_visibility="collapsed")
+    st.markdown("<div class='swatches'>" + "".join(
+        f"<span class='sw{' on' if name == st.session_state.palette else ''}' title='{name}' "
+        f"style='background:{accent(name, DARK)}'></span>" for name in PALETTES) + "</div>",
+        unsafe_allow_html=True)
+    st.caption("โหมดสว่าง/มืด: เมนู ⋮ มุมขวาบน › Settings")
+
+    st.markdown("<div class='label'>การวิเคราะห์</div>", unsafe_allow_html=True)
     with st.expander("ตั้งค่าขั้นสูง"):
         min_conf = st.slider("ความมั่นใจขั้นต่ำของความสัมพันธ์", 0.6, 1.0, float(MIN_CONFIDENCE), 0.1,
                              help="สูง = แม่นยำขึ้นแต่ได้ความสัมพันธ์น้อยลง")
@@ -141,22 +151,23 @@ with st.sidebar:
         max_chars = st.slider("วิเคราะห์ไม่เกิน (ตัวอักษร)", 1000, 20000, 6000, 500,
                               help="เอกสารที่ยาวกว่านี้จะถูกตัดที่ท้ายประโยค เพื่อไม่ให้รอนานเกินไป")
 
-    if st.session_state.result is not None and st.button("🧹 ล้างผลลัพธ์", **STRETCH):
+    if st.session_state.result is not None and st.button("ล้างผลลัพธ์", icon=":material/delete:", **STRETCH):
         st.session_state.result = None
         st.rerun()
 
     st.divider()
-    st.caption("รองรับเอกสารภาษาอังกฤษเท่านั้น · ประมวลผลบนเครื่องของคุณด้วย Ollama "
-               "ข้อมูลไม่ถูกส่งออกไปยังบริการภายนอก (ยกเว้นเมื่อดึงเนื้อหาจากลิงก์)")
+    st.caption("รองรับเอกสารภาษาอังกฤษเท่านั้น ประมวลผลบนเครื่องด้วย Ollama "
+               "ข้อมูลไม่ถูกส่งออกไปภายนอก ยกเว้นเมื่อดึงเนื้อหาจากลิงก์")
 
 
 # ==========================================
 # Header + input
 # ==========================================
 st.markdown(
-    f"""<div class="hero">{HERO_SVG}<h1>แปลงบทความให้เป็น Knowledge Graph</h1>
-      <p>วางข้อความหรือลิงก์ข่าวภาษาอังกฤษ แล้วดูความสัมพันธ์ระหว่างบุคคล องค์กร และเหตุการณ์
-      ในรูปแผนผังที่โต้ตอบได้ พร้อมสรุปเนื้อหา</p><div class="badges"><span class="badge">🔒 ประมวลผลบนเครื่อง</span><span class="badge">🕸️ กราฟโต้ตอบได้</span><span class="badge">📤 ส่งออก HTML · CSV · JSON</span></div></div>""", unsafe_allow_html=True)
+    """<div class="masthead"><div class="kicker">DOCUMENT KNOWLEDGE GRAPH</div>
+    <h1>จากบทความ สู่แผนผังความสัมพันธ์</h1>
+    <p>วางข้อความหรือลิงก์ข่าวภาษาอังกฤษ ระบบจะดึงความสัมพันธ์ระหว่างบุคคล องค์กร และเหตุการณ์
+    ออกมาเป็นกราฟที่สำรวจได้ พร้อมตารางหลักฐานและบทสรุป</p></div>""", unsafe_allow_html=True)
 
 method = st.segmented_control("วิธีใส่ข้อมูล", [PASTE, UPLOAD, URL], key="input_method",
                               label_visibility="collapsed") or PASTE
@@ -186,7 +197,7 @@ else:
             st.session_state.url_text_for = url
     if url and url == st.session_state.url_text_for:
         if st.session_state.url_error:
-            st.error(f"ดึงเนื้อหาไม่สำเร็จ: {st.session_state.url_error}", icon="❌")
+            st.error(f"ดึงเนื้อหาไม่สำเร็จ: {st.session_state.url_error}")
         else:
             main_text = st.session_state.url_text
             doc_name = "news_url"
@@ -197,23 +208,23 @@ else:
 if not main_text:
     st.markdown(
         """<div class="steps">
-          <div class="step"><b><span class="n">1</span>ใส่ข้อมูล</b>
+          <div class="step"><span class="n">01</span><b>ใส่เอกสาร</b>
             <span class="d">วางข้อความ อัปโหลดไฟล์ .txt หรือใส่ลิงก์ข่าวภาษาอังกฤษ</span></div>
-          <div class="step"><b><span class="n">2</span>วิเคราะห์</b>
-            <span class="d">AI สกัดความสัมพันธ์ ตรวจทิศทาง และรวมเอนทิตีที่ซ้ำกัน</span></div>
-          <div class="step"><b><span class="n">3</span>สำรวจผล</b>
-            <span class="d">ดูกราฟ ตารางพร้อมหลักฐาน ข้อมูลเชิงลึก และสรุป</span></div>
+          <div class="step"><span class="n">02</span><b>วิเคราะห์</b>
+            <span class="d">สกัดความสัมพันธ์ ตรวจทิศทางของแต่ละคู่ และรวมชื่อเอนทิตีที่ซ้ำกัน</span></div>
+          <div class="step"><span class="n">03</span><b>สำรวจผล</b>
+            <span class="d">ดูกราฟ ตารางพร้อมประโยคต้นฉบับ ข้อมูลเชิงลึก และบทสรุป</span></div>
         </div>""", unsafe_allow_html=True)
     samples = list_samples()
     if samples:
-        st.markdown("<div class='eyebrow'>ลองใช้เอกสารตัวอย่าง</div>", unsafe_allow_html=True)
-        for col, (name, text) in zip(st.columns(len(samples)), samples):
-            with col, st.container(border=True, key=f"card_{name}"):
-                st.markdown(f"<div class='card-title'>📄 {name}</div>"
-                            f"<div class='card-text'>{text[:110].replace('<', '&lt;')}…</div>",
+        st.markdown("<div class='label'>เอกสารตัวอย่าง</div>", unsafe_allow_html=True)
+        for name, text in samples:
+            c_name, c_text, c_btn = st.columns([2, 7, 1.3], vertical_alignment="center")
+            c_name.markdown(f"<div class='sample-name'>{name}</div>", unsafe_allow_html=True)
+            c_text.markdown(f"<div class='sample-text'>{text[:140].replace('<', '&lt;')}</div>",
                             unsafe_allow_html=True)
-                st.button("ใช้ตัวอย่างนี้", key=f"sample_{name}", on_click=load_sample, args=(name, text),
-                          **STRETCH)
+            c_btn.button("ใช้", key=f"sample_{name}", on_click=load_sample, args=(name, text), **STRETCH)
+            st.divider()
     st.stop()
 
 # ==========================================
@@ -224,22 +235,23 @@ cur_hash = text_hash(main_text)
 will_truncate = chars > max_chars
 
 c1, c2, c3 = st.columns(3)
-c1.metric("จำนวนคำ", f"{words:,}", border=True)
-c2.metric("จำนวนตัวอักษร", f"{chars:,}", border=True)
-c3.metric("เวลาที่ใช้โดยประมาณ", fmt_duration(estimate_seconds(main_text[:max_chars], window_size), short=True), border=True,
+c1.metric("จำนวนคำ", f"{words:,}")
+c2.metric("จำนวนตัวอักษร", f"{chars:,}")
+c3.metric("เวลาที่ใช้โดยประมาณ",
+          fmt_duration(estimate_seconds(main_text[:max_chars], window_size), short=True),
           help="ประมาณจากความยาวเอกสาร เวลาจริงขึ้นกับเครื่องและโมเดล")
 
 if len(re.findall(r"[฀-๿]", main_text)) > 0.3 * max(chars, 1):
-    st.warning("เอกสารส่วนใหญ่เป็นภาษาไทย — ระบบรองรับเฉพาะภาษาอังกฤษ ผลลัพธ์อาจไม่ถูกต้อง", icon="⚠️")
+    st.warning("เอกสารส่วนใหญ่เป็นภาษาไทย — ระบบรองรับเฉพาะภาษาอังกฤษ ผลลัพธ์อาจไม่ถูกต้อง")
 if will_truncate:
     st.info(f"เอกสารยาว {chars:,} ตัวอักษร จะวิเคราะห์เฉพาะ {max_chars:,} ตัวอักษรแรก "
-            "(ปรับได้ที่แถบด้านข้าง › ตั้งค่าขั้นสูง)", icon="✂️")
+            "(ปรับได้ที่แถบด้านข้าง › ตั้งค่าขั้นสูง)")
 
-with st.expander("📄 ดูเนื้อหาที่จะวิเคราะห์"):
+with st.expander("ดูเนื้อหาที่จะวิเคราะห์"):
     st.text(main_text[:20000] + ("\n…" if chars > 20000 else ""))
 
-run = st.button("🚀 วิเคราะห์และสร้างกราฟ", type="primary", **STRETCH, disabled=not ollama_ok,
-                help=None if ollama_ok else "ต้องเปิด Ollama ก่อน (ดูแถบด้านข้าง)")
+run = st.button("วิเคราะห์เอกสาร", type="primary", icon=":material/play_arrow:", **STRETCH,
+                disabled=not ollama_ok, help=None if ollama_ok else "ต้องเปิด Ollama ก่อน (ดูแถบด้านข้าง)")
 
 if run:
     progress = st.progress(0, text="เตรียมการวิเคราะห์...")
@@ -247,7 +259,7 @@ if run:
         def on_progress(pct, msg, done):
             progress.progress(min(pct, 100), text=f"{msg} ({pct}%)")
             if done:
-                st.write(f"✅ {msg}")
+                st.write(f"{pct:>3}%  {msg}")
             else:
                 status.update(label=msg)
         try:
@@ -263,7 +275,7 @@ if run:
                           state="complete", expanded=False)
     if failure:  # shown outside the (collapsed) status box so it is always visible
         progress.empty()
-        st.error(f"วิเคราะห์ไม่สำเร็จ: {failure[0]}", icon="❌")
+        st.error(f"วิเคราะห์ไม่สำเร็จ: {failure[0]}")
         with st.expander("รายละเอียดข้อผิดพลาด"):
             st.code(failure[1])
         st.stop()
@@ -279,30 +291,29 @@ result = st.session_state.result
 if result is None:
     st.stop()
 if st.session_state.result_hash != cur_hash:
-    st.info("ผลลัพธ์ที่เก็บไว้เป็นของเอกสารอื่น — กด “วิเคราะห์และสร้างกราฟ” เพื่อวิเคราะห์เอกสารนี้", icon="ℹ️")
+    st.info("ผลลัพธ์ที่เก็บไว้เป็นของเอกสารอื่น — กด “วิเคราะห์เอกสาร” เพื่อวิเคราะห์เอกสารนี้")
     st.stop()
 
 insights, relations, stats = result.insights, result.relations, result.stats
-st.markdown(
-    f"<div class='result-head'><h2>ผลการวิเคราะห์</h2>"
-    f"<span class='chip'>{st.session_state.result_name}</span></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='result-head'><h2>ผลการวิเคราะห์</h2><code>{st.session_state.result_name}</code></div>",
+            unsafe_allow_html=True)
 
 if not relations:
     st.warning("ไม่พบความสัมพันธ์ที่ผ่านการตรวจสอบ ลอง: ใช้ประโยคที่สมบูรณ์ขึ้น, ลดความมั่นใจขั้นต่ำ "
-               "หรือเพิ่มจำนวนประโยคต่อกลุ่มในแถบด้านข้าง", icon="🔍")
+               "หรือเพิ่มจำนวนประโยคต่อกลุ่มในแถบด้านข้าง")
     st.stop()
 
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("เอนทิตี (โหนด)", insights.get("total_entities", 0), border=True)
-k2.metric("ความสัมพันธ์ (เส้น)", insights.get("total_relations", 0), border=True)
-k3.metric("กลุ่มที่เชื่อมกันเอง", insights.get("num_connected_components", 0), border=True,
+k1.metric("เอนทิตี (โหนด)", insights.get("total_entities", 0))
+k2.metric("ความสัมพันธ์ (เส้น)", insights.get("total_relations", 0))
+k3.metric("กลุ่มที่เชื่อมกันเอง", insights.get("num_connected_components", 0),
           help="จำนวนกลุ่มเนื้อหาที่ไม่เชื่อมถึงกันในข้อความจริง (ไม่นับเส้นที่ระบบเชื่อมให้)")
-k4.metric("เวลาที่ใช้", fmt_duration(stats["elapsed"], short=True), border=True)
+k4.metric("เวลาที่ใช้", fmt_duration(stats["elapsed"], short=True))
 if stats["truncated"]:
-    st.caption(f"✂️ วิเคราะห์เฉพาะ {stats['chars']:,} ตัวอักษรแรกของเอกสาร")
+    st.caption(f"วิเคราะห์เฉพาะ {stats['chars']:,} ตัวอักษรแรกของเอกสาร")
 
-tab_graph, tab_table, tab_insight, tab_summary = st.tabs(
-    ["🕸️ กราฟ", "📋 ความสัมพันธ์", "📈 ข้อมูลเชิงลึก", "📝 สรุป"])
+st.write("")
+tab_graph, tab_table, tab_insight, tab_summary = st.tabs(["กราฟ", "ความสัมพันธ์", "ข้อมูลเชิงลึก", "สรุป"])
 
 with tab_graph:
     used = {"Topic"} | {r.get(k, "Entity") for r in relations for k in ("head_type", "tail_type")}
@@ -313,7 +324,7 @@ with tab_graph:
     st.caption("ลากเพื่อย้ายโหนด · เลื่อนเมาส์เพื่อซูม · คลิกโหนดเพื่อดูรายละเอียด · "
                "เส้นประสีแดงคือเส้นที่ระบบเชื่อมกลุ่มที่แยกกัน ไม่ได้มาจากข้อความ")
     show_html(result.html, 680)
-    st.download_button("💾 ดาวน์โหลดกราฟ (HTML)", result.html,
+    st.download_button("ดาวน์โหลดกราฟ (HTML)", result.html, icon=":material/download:",
                        file_name=f"{st.session_state.result_name}_graph.html", mime="text/html")
 
 with tab_table:
@@ -324,7 +335,7 @@ with tab_table:
         "ความมั่นใจ": r.get("confidence", 0.0), "ประโยคต้นฉบับ": r.get("source_sentence", ""),
     } for r in relations])
 
-    query = st.text_input("ค้นหา", placeholder="ค้นหาเอนทิตี ความสัมพันธ์ หรือประโยค...",
+    query = st.text_input("ค้นหา", placeholder="ค้นหาเอนทิตี ความสัมพันธ์ หรือประโยค",
                           label_visibility="collapsed").strip().lower()
     if query:
         df = df[df.apply(lambda row: query in " ".join(map(str, row.values)).lower(), axis=1)]
@@ -344,29 +355,30 @@ with tab_table:
             st.caption(f"“{row['ประโยคต้นฉบับ']}”")
 
     d1, d2, _ = st.columns([1, 1, 4])
-    d1.download_button("⬇️ CSV", df.to_csv(index=False).encode("utf-8-sig"),
+    d1.download_button("CSV", df.to_csv(index=False).encode("utf-8-sig"), icon=":material/download:",
                        file_name=f"{st.session_state.result_name}_relations.csv", mime="text/csv",
                        **STRETCH)
-    d2.download_button("⬇️ JSON", json.dumps(relations, ensure_ascii=False, indent=2),
+    d2.download_button("JSON", json.dumps(relations, ensure_ascii=False, indent=2), icon=":material/download:",
                        file_name=f"{st.session_state.result_name}_relations.json", mime="application/json",
                        **STRETCH)
 
 with tab_insight:
     i1, i2, i3 = st.columns(3)
-    i1.metric("ความหนาแน่นของกราฟ", insights.get("density", 0), border=True,
+    i1.metric("ความหนาแน่นของกราฟ", insights.get("density", 0),
               help="สัดส่วนเส้นที่มีจริงเทียบกับเส้นที่เป็นไปได้ทั้งหมด ยิ่งต่ำยิ่งกระจาย")
-    i2.metric("จำนวนกลุ่มเนื้อหา (community)", insights.get("num_communities", 0), border=True)
-    i3.metric("กลุ่มที่เชื่อมกันเอง", insights.get("num_connected_components", 0), border=True)
+    i2.metric("จำนวนกลุ่มเนื้อหา (community)", insights.get("num_communities", 0))
+    i3.metric("กลุ่มที่เชื่อมกันเอง", insights.get("num_connected_components", 0))
 
+    st.write("")
     left, right = st.columns(2)
-    with left, st.container(border=True):
-        st.markdown("**🌟 เอนทิตีศูนย์กลาง**")
+    with left:
+        st.markdown("<div class='label'>เอนทิตีศูนย์กลาง</div>", unsafe_allow_html=True)
         top = insights.get("top_entity_by_degree")
         if top:
             st.markdown(f"### {top['entity']}")
             st.caption("เชื่อมกับเอนทิตีอื่นมากที่สุด")
-    with right, st.container(border=True):
-        st.markdown("**🌉 เอนทิตีตัวเชื่อม**")
+    with right:
+        st.markdown("<div class='label'>เอนทิตีตัวเชื่อม</div>", unsafe_allow_html=True)
         bridge = insights.get("top_entity_by_betweenness")
         if bridge and bridge["score"] > 0:
             st.markdown(f"### {bridge['entity']}")
@@ -376,16 +388,17 @@ with tab_insight:
 
     top_rel = insights.get("top_relations", [])
     if top_rel:
-        st.markdown("**ความสัมพันธ์ที่พบบ่อย**")
+        st.markdown("<div class='label'>ความสัมพันธ์ที่พบบ่อย</div>", unsafe_allow_html=True)
         rel_df = pd.DataFrame([(name.replace("_", " "), n) for name, n in top_rel],
                               columns=["ความสัมพันธ์", "จำนวน"]).set_index("ความสัมพันธ์")
-        st.bar_chart(rel_df, horizontal=True, height=40 * len(rel_df) + 60, color="#6366F1")
+        st.bar_chart(rel_df, horizontal=True, height=40 * len(rel_df) + 60,
+                     color=accent(st.session_state.palette, DARK))
 
     communities = insights.get("sample_communities", [])
     if communities:
-        st.markdown("**กลุ่มเนื้อหาที่พบ**")
+        st.markdown("<div class='label'>กลุ่มเนื้อหาที่พบ</div>", unsafe_allow_html=True)
         for i, members in enumerate(communities, 1):
-            st.markdown(f"- **กลุ่ม {i}:** " + " · ".join(members))
+            st.markdown(f"**กลุ่ม {i}** · " + " · ".join(members))
     with st.expander("ข้อมูลดิบ (JSON)"):
         st.json(insights)
 
@@ -396,5 +409,5 @@ with tab_summary:
     st.caption("สรุปโดย LLM จากเนื้อหาต้นฉบับร่วมกับกราฟความรู้ เพื่อลดการบิดเบือน แต่ไม่รับประกันว่าถูกต้อง 100% "
                "ควรตรวจสอบกับต้นฉบับ")
     if result.summary:
-        st.download_button("⬇️ ดาวน์โหลดสรุป (.md)", result.summary,
+        st.download_button("ดาวน์โหลดสรุป (.md)", result.summary, icon=":material/download:",
                            file_name=f"{st.session_state.result_name}_summary.md", mime="text/markdown")
