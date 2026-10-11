@@ -5,6 +5,14 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+class FetchError(ValueError):
+    """Raised with an i18n key (see src/i18n.py) describing why a page cannot be fetched."""
+
+    def __init__(self, key):
+        super().__init__(key)
+        self.key = key
+
+
 MAX_BYTES = 2_000_000
 MAX_REDIRECTS = 3
 HEADERS = {
@@ -13,18 +21,18 @@ HEADERS = {
 
 
 def validate_public_url(url):
-    """Raise ValueError unless url is http(s) and resolves only to public IP addresses."""
+    """Raise FetchError unless url is http(s) and resolves only to public IP addresses."""
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise ValueError("รองรับเฉพาะลิงก์ http/https")
+        raise FetchError("err_scheme")
     try:
         infos = socket.getaddrinfo(parsed.hostname, parsed.port or 443)
     except socket.gaierror as e:
-        raise ValueError(f"ไม่พบโฮสต์: {parsed.hostname}") from e
+        raise FetchError("err_host") from e
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if not ip.is_global:
-            raise ValueError("ไม่อนุญาตให้เข้าถึงที่อยู่ภายในหรือที่อยู่ส่วนตัว")
+            raise FetchError("err_private")
 
 
 def _download(url):
@@ -37,10 +45,10 @@ def _download(url):
             r.raise_for_status()
             body = r.raw.read(MAX_BYTES + 1, decode_content=True)
             if len(body) > MAX_BYTES:
-                raise ValueError("เนื้อหาใหญ่เกินไป")
+                raise FetchError("err_size")
             encoding = r.encoding if r.encoding and "charset" in r.headers.get("Content-Type", "") else None
             return body, encoding
-    raise ValueError("redirect มากเกินไป")
+    raise FetchError("err_redirect")
 
 
 def extract_text(html, encoding=None):

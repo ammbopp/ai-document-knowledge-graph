@@ -1,4 +1,5 @@
 from .config import SUMMARY_GRAPH_CHARS, SUMMARY_TEXT_CHARS
+from .i18n import t
 from .llm import generate
 
 PROMPT = """You are an expert AI summarizer. Your task is to generate a highly accurate, structured summary.
@@ -20,7 +21,7 @@ To prevent hallucinations and capture topic shifts perfectly, you MUST synthesiz
 Summary:"""
 
 
-def generate_graph_augmented_summary(original_text, resolved_relations):
+def generate_graph_augmented_summary(original_text, resolved_relations, lang="th"):
     grouped = {}
     for r in resolved_relations:
         grouped.setdefault(r.get("source_sentence", "General"), []).append(
@@ -35,4 +36,4 @@ def generate_graph_augmented_summary(original_text, resolved_relations):
         return generate(prompt, temperature=0.1)
     except Exception as e:
         print(f"⚠️ Graph-Augmented Summarization Failed: {e}")
-        return "ไม่สามารถสร้างคำสรุปได้เนื่องจากเกิดข้อผิดพลาดในการเชื่อมต่อกับ LLM"
+        return t("summary_failed", lang)

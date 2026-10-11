@@ -246,3 +246,34 @@ def test_palettes_are_valid_hex_and_drive_css_vars():
     assert accent(DEFAULT_PALETTE) != accent(DEFAULT_PALETTE, dark=True)
     assert "--accent:" + accent(DEFAULT_PALETTE) in css_vars(DEFAULT_PALETTE)
     assert css_vars("unknown-name")  # falls back to the default palette
+
+
+def test_i18n_languages_have_identical_keys_and_formats():
+    import string
+    from src.i18n import STRINGS, t
+    th, en = STRINGS["th"], STRINGS["en"]
+    assert set(th) == set(en)
+    fields = lambda s: {f for _, f, _, _ in string.Formatter().parse(s) if f}
+    for key in th:
+        assert fields(th[key]) == fields(en[key]), key  # same placeholders in both languages
+    assert t("run", "en") == "Analyse" and t("run", "xx") == t("run", "th") and t("nope") == "nope"
+
+
+def test_graph_view_uses_theme_colours_and_escapes_text(tmp_path):
+    from src.graph_view import NODE_TYPES, node_colors, visualize_graph
+    colors = node_colors("#123456")
+    assert set(colors) == set(NODE_TYPES) and colors["Topic"]["background"] == "#123456"
+    assert node_colors("#abcdef", "dark")["Person"] != colors["Person"]
+    G = build_graph([rel("<img src=x onerror=alert(1)>", "uses", "B Corp", "Person", "Organization")])
+    out = tmp_path / "g.html"
+    page = visualize_graph(G, str(out), accent=("#123456", "#abcdef"), labels={"dark_mode": "โหมดมืด"})
+    assert "#123456" in page and "โหมดมืด" in page
+    assert "<img src=x onerror" not in page.split("panel_html")[-1][:300]  # tooltip text is HTML-escaped
+
+
+def test_fetch_errors_carry_i18n_keys():
+    from src.web_fetch import FetchError, validate_public_url
+    from src.i18n import STRINGS
+    with pytest.raises(FetchError) as info:
+        validate_public_url("ftp://example.com")
+    assert info.value.key == "err_scheme" and info.value.key in STRINGS["en"]

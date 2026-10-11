@@ -10,6 +10,7 @@ from .config import LLM_WORKERS, MIN_CONFIDENCE, RESOLVER_THRESHOLD, WINDOW_OVER
 from .entity_resolution import EntityResolver, resolve_relations
 from .graph_builder import build_graph, visualize_graph
 from .graph_insight import analyze_graph
+from .i18n import graph_labels, t, type_names
 from .preprocessing import resolve_coreferences_with_llm
 from .relation_extraction_ai import extract_relations
 from .summarization import generate_graph_augmented_summary
@@ -24,6 +25,7 @@ class AnalysisResult:
     insights: dict
     html: str
     summary: str
+    graph: object = None
     stats: dict = field(default_factory=dict)
 
 
@@ -41,11 +43,13 @@ def estimate_seconds(text, window_size=WINDOW_SIZE, overlap=WINDOW_OVERLAP):
     return int(max(1, -(-sentences // step)) * SECONDS_PER_CHUNK)
 
 
-def render_graph_html(G):
+def render_graph_html(G, *, accent=("#6b63d9", "#a9a3ff"), lang="th", dark=False):
+    """Render the interactive graph with theme colours and UI strings for `lang`."""
     tmp_dir = tempfile.mkdtemp(prefix="kg_")
     path = os.path.join(tmp_dir, "graph.html")
     try:
-        visualize_graph(G, output_file=path)
+        visualize_graph(G, output_file=path, accent=accent, labels=graph_labels(lang),
+                        type_names=type_names(lang), dark=dark)
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
     finally:
@@ -53,27 +57,28 @@ def render_graph_html(G):
 
 
 def analyze_document(text, nlp, embedder, *, min_confidence=MIN_CONFIDENCE, threshold=RESOLVER_THRESHOLD,
-                     window_size=WINDOW_SIZE, overlap=WINDOW_OVERLAP, max_chars=None, on_progress=None):
+                     window_size=WINDOW_SIZE, overlap=WINDOW_OVERLAP, max_chars=None, on_progress=None,
+                     lang="th"):
     """
     Run the full pipeline. on_progress(percent, message, done) is called as work proceeds;
-    done=True marks a finished step (message summarises its outcome).
+    done=True marks a finished step (message summarises its outcome). Messages use `lang`.
     """
-    def emit(pct, msg, done=False):
+    def emit(pct, key, finished=False, **kwargs):
         if on_progress:
-            on_progress(pct, msg, done)
+            on_progress(pct, t(key, lang, **kwargs), finished)
 
     start = time.time()
     truncated = bool(max_chars) and len(text) > max_chars
     if truncated:
         text = truncate_at_sentence(text, max_chars)
 
-    emit(2, "กำลังแก้คำสรรพนาม (Coreference Resolution)...")
+    emit(2, "p_coref")
     resolved_text = resolve_coreferences_with_llm(text)
-    emit(8, "แก้คำสรรพนามเสร็จสิ้น", True)
+    emit(8, "p_coref_done", True)
 
     sentences = split_sentences(nlp, resolved_text)
     chunks = create_sliding_windows(sentences, window_size, overlap)
-    emit(10, f"แบ่งเอกสารเป็น {len(sentences)} ประโยค / {len(chunks)} กลุ่ม", True)
+    emit(10, "p_split", True, sentences=len(sentences), chunks=len(chunks))
 
     # Chunks are independent, so run several LLM requests at once; results keep document order
     per_chunk = [None] * len(chunks)
@@ -83,27 +88,27 @@ def analyze_document(text, nlp, embedder, *, min_confidence=MIN_CONFIDENCE, thre
         for done, future in enumerate(as_completed(futures), 1):
             per_chunk[futures[future]] = future.result()
             remaining = (time.time() - t0) / done * (len(chunks) - done)
-            emit(10 + int(70 * done / len(chunks)),
-                 f"กำลังสกัดความสัมพันธ์ เสร็จแล้ว {done}/{len(chunks)} กลุ่ม (เหลือประมาณ {int(remaining)} วินาที)")
+            emit(10 + int(70 * done / len(chunks)), "p_extract",
+                 done=done, total=len(chunks), remaining=int(remaining))
     relations = [r for chunk_relations in per_chunk for r in chunk_relations]
     usable = [r for r in relations if r.get("confidence", 0.0) >= min_confidence]
-    emit(80, f"สกัดได้ {len(usable)} ความสัมพันธ์ที่ผ่านการตรวจสอบ", True)
+    emit(80, "p_extracted", True, count=len(usable))
 
     resolver = EntityResolver(threshold=threshold, model=embedder)
     resolved = resolve_relations(
-        usable, resolver, lambda d, t: emit(80 + int(10 * d / t), f"กำลังรวมเอนทิตีที่ซ้ำกัน ({d}/{t})"))
-    emit(90, f"หลังรวมเอนทิตีเหลือ {len(resolved)} ความสัมพันธ์", True)
+        usable, resolver, lambda d, n: emit(80 + int(10 * d / n), "p_merge", done=d, total=n))
+    emit(90, "p_merged", True, count=len(resolved))
 
     G = build_graph(resolved)
-    html = render_graph_html(G)
+    html = render_graph_html(G, lang=lang)
     insights = analyze_graph(G)
-    emit(95, f"สร้างกราฟ {G.number_of_nodes()} โหนด / {G.number_of_edges()} เส้น", True)
+    emit(95, "p_graph", True, nodes=G.number_of_nodes(), edges=G.number_of_edges())
 
-    emit(96, "กำลังสรุปเนื้อหา...")
-    summary = generate_graph_augmented_summary(text, resolved) if resolved else ""
-    emit(100, "เสร็จสิ้น", True)
+    emit(96, "p_summary")
+    summary = generate_graph_augmented_summary(text, resolved, lang) if resolved else ""
+    emit(100, "p_done", True)
 
-    return AnalysisResult(resolved, insights, html, summary, {
+    return AnalysisResult(resolved, insights, html, summary, G, {
         "elapsed": time.time() - start, "chunks": len(chunks), "extracted": len(relations),
         "usable": len(usable), "truncated": truncated, "chars": len(text),
     })

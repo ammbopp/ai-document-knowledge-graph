@@ -1,13 +1,13 @@
 """Colour themes for the web UI: (accent for light mode, accent for dark mode)."""
 PALETTES = {
-    "ม่วงลาเวนเดอร์": ("#6b63d9", "#a9a3ff"),
-    "ฟ้าสกาย": ("#2f7fd1", "#7fb8ff"),
-    "เขียวมินต์": ("#1f9a7a", "#6fe0c0"),
-    "พีชส้ม": ("#e4693a", "#ffa079"),
-    "ชมพูกุหลาบ": ("#cf4f86", "#ff9cc4"),
-    "กราไฟต์": ("#4b5563", "#c4cad4"),
+    "lavender": ("#6b63d9", "#a9a3ff"),
+    "sky": ("#2f7fd1", "#7fb8ff"),
+    "mint": ("#1f9a7a", "#6fe0c0"),
+    "peach": ("#e4693a", "#ffa079"),
+    "rose": ("#cf4f86", "#ff9cc4"),
+    "graphite": ("#4b5563", "#c4cad4"),
 }
-DEFAULT_PALETTE = "ม่วงลาเวนเดอร์"
+DEFAULT_PALETTE = "lavender"
 
 # Surface colours that depend on light / dark mode (everything else derives from --accent)
 _LIGHT = {
@@ -25,6 +25,11 @@ _DARK = {
 def accent(name, dark=False):
     light, dark_variant = PALETTES.get(name, PALETTES[DEFAULT_PALETTE])
     return dark_variant if dark else light
+
+
+def accent_pair(name):
+    """(light, dark) accent hex pair."""
+    return PALETTES.get(name, PALETTES[DEFAULT_PALETTE])
 
 
 def css_vars(name, dark=False):
