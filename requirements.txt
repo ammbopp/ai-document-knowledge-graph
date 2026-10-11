@@ -6,6 +6,7 @@ spacy>=3.7        # then: python -m spacy download en_core_web_sm
 networkx>=3.2
 pyvis>=0.3.2
 numpy>=1.26
+scipy>=1.11       # networkx Kamada-Kawai graph layout
 pandas>=2.1
 sentence-transformers>=3.0
 

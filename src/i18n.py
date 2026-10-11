@@ -92,6 +92,11 @@ STRINGS = {
         "graph_hint": "ลากเพื่อย้ายโหนด · เลื่อนเมาส์เพื่อซูม · คลิกโหนดเพื่อดูรายละเอียด · "
                       "เส้นประสีแดงคือเส้นที่ระบบเชื่อมกลุ่มที่แยกกัน ไม่ได้มาจากข้อความ",
         "dl_graph": "ดาวน์โหลดกราฟ (HTML)",
+        "dl_report": "ดาวน์โหลดรายงานทั้งหน้า",
+        "report_title": "รายงานกราฟความรู้", "report_generated": "สร้างเมื่อ {date}",
+        "report_count": "แสดง {shown} จาก {total} รายการ",
+        "report_footer": "ไฟล์เดียวจบ: สรุป กราฟโต้ตอบ ข้อมูลเชิงลึก และความสัมพันธ์ทั้งหมดอยู่ในหน้านี้ "
+                         "(ฟอนต์โหลดจากอินเทอร์เน็ตถ้ามี)",
         "search": "ค้นหาเอนทิตี ความสัมพันธ์ หรือประโยค",
         "showing": "แสดง {shown} จาก {total} รายการ · คลิกแถวเพื่อดูประโยคต้นฉบับ",
         "c_subject": "ประธาน", "c_relation": "ความสัมพันธ์", "c_object": "กรรม",
@@ -116,7 +121,7 @@ STRINGS = {
         "Person": "บุคคล", "Organization": "องค์กร", "Location": "สถานที่", "Time": "เวลา", "Work": "ผลงาน",
         "Entity": "อื่นๆ", "Topic": "หัวข้อหลัก (ศูนย์กลาง)",
         # --- graph viewer ---
-        "g_dark": "โหมดมืด", "g_light": "โหมดสว่าง", "g_freeze": "หยุดการเคลื่อนไหว", "g_unfreeze": "เคลื่อนไหวต่อ",
+        "g_dark": "โหมดมืด", "g_light": "โหมดสว่าง", "g_tidy": "จัดเรียงใหม่", "g_zoom_in": "ซูมเข้า", "g_zoom_out": "ซูมออก", "g_fit": "พอดีหน้าจอ", "g_importance": "ความสำคัญ", "g_showing": "แสดง {shown} จาก {total} ความสัมพันธ์",
         "g_overview": "ภาพรวม", "g_connected": "เอนทิตีที่เชื่อมอยู่", "g_no_connections": "ไม่มีการเชื่อมโดยตรง",
         "g_no_context": "ไม่มีข้อมูลเพิ่มเติม", "g_type": "ชนิด", "g_connections": "จำนวนการเชื่อมต่อ",
         "g_implicit": "(ระบบเชื่อมให้กับเอนทิตีหลัก ไม่ได้มาจากข้อความ)",
@@ -209,6 +214,11 @@ STRINGS = {
         "graph_hint": "Drag to move nodes · scroll to zoom · click a node for details · "
                       "dashed red edges were added by the system to join separate groups",
         "dl_graph": "Download graph (HTML)",
+        "dl_report": "Download full report",
+        "report_title": "Knowledge graph report", "report_generated": "Generated {date}",
+        "report_count": "Showing {shown} of {total}",
+        "report_footer": "Everything in one file: summary, interactive graph, insights and all relations "
+                         "(fonts load from the internet when available).",
         "search": "Search entities, relations or sentences",
         "showing": "Showing {shown} of {total} · click a row to see the source sentence",
         "c_subject": "Subject", "c_relation": "Relation", "c_object": "Object",
@@ -231,7 +241,7 @@ STRINGS = {
         "u_min": "min", "u_sec": "s",
         "Person": "Person", "Organization": "Organization", "Location": "Location", "Time": "Time", "Work": "Work",
         "Entity": "Other", "Topic": "Main topic (hub)",
-        "g_dark": "Dark mode", "g_light": "Light mode", "g_freeze": "Freeze layout", "g_unfreeze": "Resume layout",
+        "g_dark": "Dark mode", "g_light": "Light mode", "g_tidy": "Tidy layout", "g_zoom_in": "Zoom in", "g_zoom_out": "Zoom out", "g_fit": "Fit to screen", "g_importance": "Importance", "g_showing": "Showing {shown} of {total} relations",
         "g_overview": "Overview", "g_connected": "Connected entities", "g_no_connections": "No direct connections",
         "g_no_context": "No additional context.", "g_type": "Type", "g_connections": "Connections",
         "g_implicit": "(Added by the system to link this group to the main entity)",
@@ -248,7 +258,7 @@ def t(key, lang=DEFAULT_LANG, **kwargs):
 
 
 def graph_labels(lang):
-    keys = ["dark", "light", "freeze", "unfreeze", "overview", "connected", "no_connections", "no_context",
+    keys = ["dark", "light", "tidy", "zoom_in", "zoom_out", "fit", "importance", "showing", "overview", "connected", "no_connections", "no_context",
             "type", "connections", "implicit"]
     mapping = {"dark": "dark_mode", "light": "light_mode"}
     return {mapping.get(k, k): t("g_" + k, lang) for k in keys}

@@ -100,9 +100,10 @@ section[data-testid="stSidebar"] > div:first-child {
   background: var(--card); border: 1px solid var(--line); color: inherit;
 }
 .stButton > button:hover:not(:disabled), .stDownloadButton > button:hover { border-color: var(--ink); color: inherit; }
-.stButton > button[kind="primary"] { background: var(--ink); border: 1px solid var(--ink); }
-.stButton > button[kind="primary"] p, .stButton > button[kind="primary"] span { color: var(--ink-text); }
-.stButton > button[kind="primary"]:hover:not(:disabled) { opacity: .88; }
+.stButton > button[kind="primary"], .stDownloadButton > button[kind="primary"] { background: var(--ink); border: 1px solid var(--ink); }
+.stButton > button[kind="primary"] p, .stButton > button[kind="primary"] span,
+.stDownloadButton > button[kind="primary"] p, .stDownloadButton > button[kind="primary"] span { color: var(--ink-text); }
+.stButton > button[kind="primary"]:hover:not(:disabled), .stDownloadButton > button[kind="primary"]:hover { opacity: .88; }
 .stButton > button:disabled { opacity: .4; }
 
 /* segmented control = chips */

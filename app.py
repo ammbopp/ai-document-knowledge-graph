@@ -25,6 +25,7 @@ from src.graph_view import NODE_TYPES, node_colors
 from src.i18n import DEFAULT_LANG, LANGS, t
 from src.llm import health
 from src.pipeline import analyze_document, estimate_seconds, render_graph_html
+from src.report import build_report
 from src.themes import DEFAULT_PALETTE, PALETTES, accent, accent_pair, css_vars
 from src.web_fetch import FetchError, decode_upload, fetch_text_from_url
 
@@ -334,12 +335,20 @@ if st.session_state.result_hash != cur_hash:
     st.stop()
 
 insights, relations, stats = result.insights, result.relations, result.stats
-st.markdown(f"<div class='result-head'><h2>{T('results')}</h2><code>{st.session_state.result_name}</code></div>",
-            unsafe_allow_html=True)
+head_col, report_col = st.columns([3, 1.3], vertical_alignment="bottom")
+head_col.markdown(f"<div class='result-head'><h2>{T('results')}</h2><code>{st.session_state.result_name}</code></div>",
+                  unsafe_allow_html=True)
 
 if not relations:
     st.warning(T("no_relations"))
     st.stop()
+
+report_col.download_button(
+    T("dl_report"),
+    build_report(result, graph_html(result), name=st.session_state.result_name, lang=st.session_state.lang,
+                 palette=st.session_state.palette, dark=DARK),
+    icon=":material/download:", file_name=f"{st.session_state.result_name}_report.html", mime="text/html",
+    type="primary", **STRETCH)
 
 k1, k2, k3, k4 = st.columns(4)
 k1.metric(T("k_entities"), insights.get("total_entities", 0))
