@@ -140,6 +140,10 @@ class EntityResolver:
         cid = self.key_to_cluster.get(key)
         return self.cluster_name[cid] if cid is not None else entity.strip()
 
+    def cluster_of(self, entity):
+        """Cluster id of an already-resolved surface form (None if it was never seen)."""
+        return self.key_to_cluster.get(simplify_entity_name(entity.strip()).lower().strip())
+
     def type_of(self, entity, default="Entity"):
         key = simplify_entity_name(entity.strip()).lower().strip()
         cid = self.key_to_cluster.get(key)

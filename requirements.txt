@@ -9,11 +9,9 @@ numpy>=1.26
 pandas>=2.1
 sentence-transformers>=3.0
 
-# Evaluation scripts only
-scikit-learn>=1.4
-datasets
-rouge-score
-tqdm
+# Evaluation package only (python -m evaluation)
+datasets>=2.19
+rouge-score>=0.1.2
 
 # Tests
 pytest>=8

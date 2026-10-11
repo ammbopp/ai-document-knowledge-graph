@@ -2,9 +2,11 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 .cache/
 .env
 .DS_Store
 graph.html
+lib/
 output/
-experiment_*.csv
+evaluation/results/

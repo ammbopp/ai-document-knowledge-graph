@@ -43,6 +43,22 @@ def estimate_seconds(text, window_size=WINDOW_SIZE, overlap=WINDOW_OVERLAP):
     return int(max(1, -(-sentences // step)) * SECONDS_PER_CHUNK)
 
 
+def extract_chunks(chunks, on_chunk=None):
+    """
+    Extract relations from every chunk with several LLM requests in flight; results keep document
+    order. on_chunk(done, total, remaining_seconds) is called as each chunk completes.
+    """
+    per_chunk = [None] * len(chunks)
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=max(1, LLM_WORKERS)) as pool:
+        futures = {pool.submit(extract_relations, [chunk]): i for i, chunk in enumerate(chunks)}
+        for done, future in enumerate(as_completed(futures), 1):
+            per_chunk[futures[future]] = future.result()
+            if on_chunk:
+                on_chunk(done, len(chunks), int((time.time() - t0) / done * (len(chunks) - done)))
+    return per_chunk
+
+
 def render_graph_html(G, *, accent=("#6b63d9", "#a9a3ff"), lang="th", dark=False):
     """Render the interactive graph with theme colours and UI strings for `lang`."""
     tmp_dir = tempfile.mkdtemp(prefix="kg_")
@@ -72,43 +88,47 @@ def analyze_document(text, nlp, embedder, *, min_confidence=MIN_CONFIDENCE, thre
     if truncated:
         text = truncate_at_sentence(text, max_chars)
 
+    marks = {"start": start}  # stage boundaries -> per-stage seconds in stats
+
     emit(2, "p_coref")
     resolved_text = resolve_coreferences_with_llm(text)
+    marks["coref"] = time.time()
     emit(8, "p_coref_done", True)
 
     sentences = split_sentences(nlp, resolved_text)
     chunks = create_sliding_windows(sentences, window_size, overlap)
+    marks["split"] = time.time()
     emit(10, "p_split", True, sentences=len(sentences), chunks=len(chunks))
 
-    # Chunks are independent, so run several LLM requests at once; results keep document order
-    per_chunk = [None] * len(chunks)
-    t0 = time.time()
-    with ThreadPoolExecutor(max_workers=max(1, LLM_WORKERS)) as pool:
-        futures = {pool.submit(extract_relations, [chunk]): i for i, chunk in enumerate(chunks)}
-        for done, future in enumerate(as_completed(futures), 1):
-            per_chunk[futures[future]] = future.result()
-            remaining = (time.time() - t0) / done * (len(chunks) - done)
-            emit(10 + int(70 * done / len(chunks)), "p_extract",
-                 done=done, total=len(chunks), remaining=int(remaining))
-    relations = [r for chunk_relations in per_chunk for r in chunk_relations]
+    def on_chunk(done, total, remaining):
+        emit(10 + int(70 * done / total), "p_extract", done=done, total=total, remaining=remaining)
+
+    relations = [r for chunk_relations in extract_chunks(chunks, on_chunk) for r in chunk_relations]
     usable = [r for r in relations if r.get("confidence", 0.0) >= min_confidence]
+    marks["extract"] = time.time()
     emit(80, "p_extracted", True, count=len(usable))
 
     resolver = EntityResolver(threshold=threshold, model=embedder)
     resolved = resolve_relations(
         usable, resolver, lambda d, n: emit(80 + int(10 * d / n), "p_merge", done=d, total=n))
+    marks["resolve"] = time.time()
     emit(90, "p_merged", True, count=len(resolved))
 
     G = build_graph(resolved)
     html = render_graph_html(G, lang=lang)
     insights = analyze_graph(G)
+    marks["graph"] = time.time()
     emit(95, "p_graph", True, nodes=G.number_of_nodes(), edges=G.number_of_edges())
 
     emit(96, "p_summary")
     summary = generate_graph_augmented_summary(text, resolved, lang) if resolved else ""
+    marks["summary"] = time.time()
     emit(100, "p_done", True)
 
+    names = list(marks)
+    stage_seconds = {cur: marks[cur] - marks[prev] for prev, cur in zip(names, names[1:])}
     return AnalysisResult(resolved, insights, html, summary, G, {
-        "elapsed": time.time() - start, "chunks": len(chunks), "extracted": len(relations),
-        "usable": len(usable), "truncated": truncated, "chars": len(text),
+        "elapsed": time.time() - start, "chunks": len(chunks), "sentences": len(sentences),
+        "extracted": len(relations), "usable": len(usable), "truncated": truncated,
+        "chars": len(text), "stage_seconds": stage_seconds,
     })

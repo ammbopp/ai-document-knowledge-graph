@@ -352,6 +352,31 @@ def find_grounding_sentence(source_doc, head, tail):
     return None
 
 
+def structure_triples(text, llm_output):
+    """
+    Structural stage (no LLM): clean, passive->active, entity/relation validity and same-sentence
+    grounding. Returns [(head, relation, tail, evidence_sentence)] for the triples that survive.
+    """
+    source_doc = _parse(text)
+    kept = []
+    for head, rel_text, tail in parse_triples(llm_output):
+        head, rel_text, tail = normalize_passive(
+            clean_entity_name(head), rel_text.strip(), clean_entity_name(tail))
+
+        if not is_valid_entity(head) or not is_valid_entity(tail):
+            continue
+        if not is_valid_relation(rel_text) or is_bare_passive(rel_text):
+            continue
+        if head.lower() == tail.lower():
+            continue
+        # Both entities must appear in ONE sentence; verify and cite against that sentence only
+        evidence = find_grounding_sentence(source_doc, head, tail)
+        if evidence is None:
+            continue
+        kept.append((head, rel_text, tail, evidence))
+    return kept
+
+
 def extract_relations(sentences):
     print("🔥 extract_relations CALLED (Ollama)")
     relations = []
@@ -372,21 +397,7 @@ def extract_relations(sentences):
 
             source_doc = _parse(sent)
 
-            for head, rel_text, tail in parse_triples(output):
-                head, rel_text, tail = normalize_passive(
-                    clean_entity_name(head), rel_text.strip(), clean_entity_name(tail))
-
-                if not is_valid_entity(head) or not is_valid_entity(tail):
-                    continue
-                if not is_valid_relation(rel_text) or is_bare_passive(rel_text):
-                    continue
-                if head.lower() == tail.lower():
-                    continue
-                # Both entities must appear in ONE sentence; verify and cite against that sentence only
-                evidence = find_grounding_sentence(source_doc, head, tail)
-                if evidence is None:
-                    continue
-
+            for head, rel_text, tail, evidence in structure_triples(sent, output):
                 is_valid, confidence_score = evaluate_triplet_cloze(head, rel_text, tail, evidence)
                 if not is_valid:
                     continue

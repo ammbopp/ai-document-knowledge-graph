@@ -26,5 +26,28 @@ Settings can be overridden with env vars: `OLLAMA_URL`, `LLM_MODEL`, `LLM_TIMEOU
 - Several LLM calls per chunk and per triple make long documents slow.
 
 ## Evaluation
-`evaluate_*.py` and `run_10_experiments.py` at the repo root benchmark individual stages
-(they need `datasets`, `rouge-score` and a running Ollama).
+Benchmarks live in the `evaluation/` package and run the production code (`src/`) directly, so they
+always measure the current system. They need `datasets`, `rouge-score` and a running Ollama.
+
+```
+python -m evaluation --help
+python -m evaluation system -n 5                  # whole pipeline: latency per stage, yield, graph, ROUGE
+python -m evaluation preprocessing -n 3           # chunking / coreference ablation, core-fact recall
+python -m evaluation extraction -n 3 --windows 6  # raw LLM vs structural filters vs verifier: precision
+python -m evaluation resolution -n 3              # entity clustering P/R/F1 per threshold
+python -m evaluation summarization -n 3           # text-only vs graph-augmented: faithfulness, ROUGE
+python -m evaluation security                     # prompt-injection leakage / hijack rates
+python -m evaluation all --source local           # everything on data/*.txt, no dataset download
+```
+
+| Option | Meaning |
+| --- | --- |
+| `-n, --samples` | articles per experiment (security: attacks per module) |
+| `--source bbc\|local` | BBC News dataset (default) or `data/*.txt` (no reference summaries) |
+| `--month`, `--offset` | pick another slice of the dataset |
+| `--out DIR` | where to write results (default `evaluation/results/`, git-ignored) |
+
+Each run prints a Markdown report and saves it with the per-article rows as CSV. Articles are taken in a
+fixed order and the LLM runs at temperature 0, so runs are comparable. Judge calls that fail are excluded
+instead of being scored, and the report states how many were. The extractor and the judge are the same
+model, so read absolute precision/faithfulness as optimistic and compare configurations with each other.
