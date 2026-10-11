@@ -232,7 +232,7 @@ def test_app_renders_and_loads_sample():
     at = AppTest.from_file("app.py", default_timeout=60).run()
     assert not at.exception
     labels = [b.label for b in at.button]
-    sample = "ใช้"
+    sample = next(label for label in labels if label.startswith("sample"))
     at.button[labels.index(sample)].click().run()
     assert not at.exception and any(m.label == "จำนวนคำ" for m in at.metric)
 

@@ -1,6 +1,6 @@
 [theme]
 font = "sans serif"
-baseRadius = "small"
+baseRadius = "large"
 
 [theme.light]
 primaryColor = "#2b3138"

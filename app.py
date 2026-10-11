@@ -120,7 +120,7 @@ def fmt_duration(seconds, short=False):
 # ==========================================
 ollama_ok, ollama_msg = check_ollama()
 with st.sidebar:
-    st.markdown("<div class='brand'>Knowledge Graph<small>document → relations</small></div>",
+    st.markdown("<div class='brand'><span class='logo'>hub</span>Knowledge Graph</div>",
                 unsafe_allow_html=True)
 
     st.markdown("<div class='label'>สถานะ</div>", unsafe_allow_html=True)
@@ -161,79 +161,95 @@ with st.sidebar:
 
 
 # ==========================================
-# Header + input
+# Greeting
 # ==========================================
+BUBBLE_ICON = (
+    "<svg viewBox='0 0 36 36' fill='none'><g stroke='var(--accent)' stroke-width='1.6' opacity='.55'>"
+    "<path d='M9 24 L18 9 L28 21 Z'/></g><g fill='var(--accent)'><circle cx='9' cy='24' r='4'/>"
+    "<circle cx='18' cy='9' r='5'/><circle cx='28' cy='21' r='3.5'/></g></svg>")
 st.markdown(
-    """<div class="masthead"><div class="kicker">DOCUMENT KNOWLEDGE GRAPH</div>
-    <h1>จากบทความ สู่แผนผังความสัมพันธ์</h1>
-    <p>วางข้อความหรือลิงก์ข่าวภาษาอังกฤษ ระบบจะดึงความสัมพันธ์ระหว่างบุคคล องค์กร และเหตุการณ์
-    ออกมาเป็นกราฟที่สำรวจได้ พร้อมตารางหลักฐานและบทสรุป</p></div>""", unsafe_allow_html=True)
+    f"""<div class="greet"><h1><span class="muted">สวัสดี</span> พร้อมเปลี่ยนบทความ
+    เป็นแผนผังความสัมพันธ์แล้วหรือยัง?</h1>
+    <div class="bubble">{BUBBLE_ICON}<span>ลองใช้เอกสารตัวอย่าง<br>ด้านล่างได้เลย</span></div></div>""",
+    unsafe_allow_html=True)
 
-method = st.segmented_control("วิธีใส่ข้อมูล", [PASTE, UPLOAD, URL], key="input_method",
-                              label_visibility="collapsed") or PASTE
+cards_slot = st.empty()  # feature cards, shown only while no document is loaded
 
+# ==========================================
+# Composer: input + method chips + analyse button
+# ==========================================
+method = st.session_state.input_method if st.session_state.input_method in (PASTE, UPLOAD, URL) else PASTE
 main_text, doc_name = "", "document"
-if method == PASTE:
-    main_text = st.text_area("ข้อความ", key="paste_box", height=220, label_visibility="collapsed",
-                             placeholder="วางบทความหรือข้อความภาษาอังกฤษที่นี่ (แนะนำ 3-30 ประโยค)").strip()
-    doc_name = st.session_state.sample_name if main_text == st.session_state.sample_text else "custom_text"
-elif method == UPLOAD:
-    uploaded = st.file_uploader("ไฟล์ .txt", type=["txt"], label_visibility="collapsed")
-    if uploaded is not None:
-        main_text = decode_upload(uploaded.getvalue()).strip()
-        doc_name = pathlib.Path(uploaded.name).stem
-else:
-    col_url, col_btn = st.columns([6, 1], vertical_alignment="bottom")
-    url = col_url.text_input("ลิงก์บทความ", placeholder="https://www.bbc.com/news/...",
-                             label_visibility="collapsed").strip()
-    retry = col_btn.button("ดึงเนื้อหา", **STRETCH)
-    if url and (url != st.session_state.url_text_for or retry):
-        with st.spinner("กำลังดึงและคัดกรองเนื้อหาจากลิงก์..."):
-            try:
-                st.session_state.url_text = fetch_text_from_url(url).strip()
-                st.session_state.url_error = "" if st.session_state.url_text else "ไม่พบเนื้อหาข้อความในหน้านี้"
-            except Exception as e:
-                st.session_state.url_text, st.session_state.url_error = "", str(e)
-            st.session_state.url_text_for = url
-    if url and url == st.session_state.url_text_for:
-        if st.session_state.url_error:
-            st.error(f"ดึงเนื้อหาไม่สำเร็จ: {st.session_state.url_error}")
-        else:
-            main_text = st.session_state.url_text
-            doc_name = "news_url"
+composer = st.container(border=True, key="composer")
+with composer:
+    if method == PASTE and not st.session_state.get("paste_box", "").strip():
+        samples = list_samples()
+        if samples:
+            cols = st.columns([2.2] + [1] * len(samples) + [0.4], vertical_alignment="center")
+            cols[0].markdown("<div class='composer-note'><span class='m'>auto_awesome</span>"
+                             "ลองตัวอย่าง</div>", unsafe_allow_html=True)
+            for col, (name, text) in zip(cols[1:], samples):
+                col.button(name, key=f"sample_{name}", on_click=load_sample, args=(name, text), **STRETCH)
 
-# ==========================================
-# Empty state
-# ==========================================
+    if method == PASTE:
+        main_text = st.text_area("ข้อความ", key="paste_box", height=190, label_visibility="collapsed",
+                                 placeholder="วางบทความหรือข้อความภาษาอังกฤษที่นี่ (แนะนำ 3-30 ประโยค)").strip()
+        doc_name = st.session_state.sample_name if main_text == st.session_state.sample_text else "custom_text"
+    elif method == UPLOAD:
+        uploaded = st.file_uploader("ไฟล์ .txt", type=["txt"], label_visibility="collapsed")
+        if uploaded is not None:
+            main_text = decode_upload(uploaded.getvalue()).strip()
+            doc_name = pathlib.Path(uploaded.name).stem
+    else:
+        col_url, col_btn = st.columns([6, 1.2], vertical_alignment="bottom")
+        url = col_url.text_input("ลิงก์บทความ", placeholder="https://www.bbc.com/news/...",
+                                 label_visibility="collapsed").strip()
+        retry = col_btn.button("ดึงเนื้อหา", icon=":material/sync:", **STRETCH)
+        if url and (url != st.session_state.url_text_for or retry):
+            with st.spinner("กำลังดึงและคัดกรองเนื้อหาจากลิงก์..."):
+                try:
+                    st.session_state.url_text = fetch_text_from_url(url).strip()
+                    st.session_state.url_error = "" if st.session_state.url_text else "ไม่พบเนื้อหาข้อความในหน้านี้"
+                except Exception as e:
+                    st.session_state.url_text, st.session_state.url_error = "", str(e)
+                st.session_state.url_text_for = url
+        if url and url == st.session_state.url_text_for:
+            if st.session_state.url_error:
+                st.error(f"ดึงเนื้อหาไม่สำเร็จ: {st.session_state.url_error}")
+            else:
+                main_text = st.session_state.url_text
+                doc_name = "news_url"
+
+    bar_left, bar_right = st.columns([5, 2], vertical_alignment="center")
+    with bar_left:
+        st.segmented_control("วิธีใส่ข้อมูล", [PASTE, UPLOAD, URL], key="input_method",
+                             label_visibility="collapsed")
+    with bar_right:
+        run = st.button("วิเคราะห์", type="primary", icon=":material/arrow_upward:", icon_position="right",
+                        disabled=not (main_text and ollama_ok), **STRETCH,
+                        help=None if ollama_ok else "ต้องเปิด Ollama ก่อน (ดูแถบด้านข้าง)")
+
 if not main_text:
-    st.markdown(
-        """<div class="steps">
-          <div class="step"><span class="n">01</span><b>ใส่เอกสาร</b>
-            <span class="d">วางข้อความ อัปโหลดไฟล์ .txt หรือใส่ลิงก์ข่าวภาษาอังกฤษ</span></div>
-          <div class="step"><span class="n">02</span><b>วิเคราะห์</b>
-            <span class="d">สกัดความสัมพันธ์ ตรวจทิศทางของแต่ละคู่ และรวมชื่อเอนทิตีที่ซ้ำกัน</span></div>
-          <div class="step"><span class="n">03</span><b>สำรวจผล</b>
-            <span class="d">ดูกราฟ ตารางพร้อมประโยคต้นฉบับ ข้อมูลเชิงลึก และบทสรุป</span></div>
+    cards_slot.markdown(
+        """<div class="cards">
+        <div class="fcard"><div class="ico">edit_note</div>
+          <p>วางบทความ อัปโหลดไฟล์ .txt หรือใส่ลิงก์ข่าวภาษาอังกฤษได้เลย</p><small>เริ่มต้น</small></div>
+        <div class="fcard"><div class="ico">account_tree</div>
+          <p>ระบบสกัดความสัมพันธ์ ตรวจทิศทางแต่ละคู่ และรวมชื่อที่ซ้ำกันให้อัตโนมัติ</p><small>วิเคราะห์</small></div>
+        <div class="fcard"><div class="ico">travel_explore</div>
+          <p>สำรวจกราฟ ตารางพร้อมประโยคต้นฉบับ และบทสรุปได้ในที่เดียว</p><small>สำรวจผล</small></div>
         </div>""", unsafe_allow_html=True)
-    samples = list_samples()
-    if samples:
-        st.markdown("<div class='label'>เอกสารตัวอย่าง</div>", unsafe_allow_html=True)
-        for name, text in samples:
-            c_name, c_text, c_btn = st.columns([2, 7, 1.3], vertical_alignment="center")
-            c_name.markdown(f"<div class='sample-name'>{name}</div>", unsafe_allow_html=True)
-            c_text.markdown(f"<div class='sample-text'>{text[:140].replace('<', '&lt;')}</div>",
-                            unsafe_allow_html=True)
-            c_btn.button("ใช้", key=f"sample_{name}", on_click=load_sample, args=(name, text), **STRETCH)
-            st.divider()
+    st.caption("รองรับเอกสารภาษาอังกฤษ · ประมวลผลบนเครื่องด้วย Ollama ข้อมูลไม่ถูกส่งออกไปภายนอก")
     st.stop()
 
 # ==========================================
-# Document summary + analyse
+# Document summary
 # ==========================================
 words, chars = len(main_text.split()), len(main_text)
 cur_hash = text_hash(main_text)
 will_truncate = chars > max_chars
 
+st.write("")
 c1, c2, c3 = st.columns(3)
 c1.metric("จำนวนคำ", f"{words:,}")
 c2.metric("จำนวนตัวอักษร", f"{chars:,}")
@@ -249,9 +265,6 @@ if will_truncate:
 
 with st.expander("ดูเนื้อหาที่จะวิเคราะห์"):
     st.text(main_text[:20000] + ("\n…" if chars > 20000 else ""))
-
-run = st.button("วิเคราะห์เอกสาร", type="primary", icon=":material/play_arrow:", **STRETCH,
-                disabled=not ollama_ok, help=None if ollama_ok else "ต้องเปิด Ollama ก่อน (ดูแถบด้านข้าง)")
 
 if run:
     progress = st.progress(0, text="เตรียมการวิเคราะห์...")
@@ -291,7 +304,7 @@ result = st.session_state.result
 if result is None:
     st.stop()
 if st.session_state.result_hash != cur_hash:
-    st.info("ผลลัพธ์ที่เก็บไว้เป็นของเอกสารอื่น — กด “วิเคราะห์เอกสาร” เพื่อวิเคราะห์เอกสารนี้")
+    st.info("ผลลัพธ์ที่เก็บไว้เป็นของเอกสารอื่น — กด “วิเคราะห์” เพื่อวิเคราะห์เอกสารนี้")
     st.stop()
 
 insights, relations, stats = result.insights, result.relations, result.stats
