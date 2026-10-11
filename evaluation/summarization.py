@@ -79,7 +79,8 @@ def run(args):
                    "compression": ratio(len(summary.split()), article.words),
                    "claims_judged": judged, "claims_supported": supported,
                    "faithfulness": ratio(supported, judged), "ungrounded_terms": len(extra),
-                   "ungrounded_examples": ", ".join(extra[:6])}
+                   "ungrounded_examples": ", ".join(extra[:6]),
+                   "summary": summary}   # kept so every flagged term can be audited in the CSV
             if article.reference:
                 for key, score in scorer.score(article.reference, summary).items():
                     row[f"{key}_f1"] = score.fmeasure

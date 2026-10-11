@@ -1,0 +1,103 @@
+{
+  "description": "Hand-labelled mention pairs for the entity-resolution experiment. A pair is 'same' when both mentions name the same real-world entity in the article, 'different' when they name different entities (including part/whole, person vs object, generic nouns used for different things) and 'ambiguous' when a careful reader could go either way; ambiguous pairs are left out of scoring. Mentions are lower-cased, pairs are unordered. Pairs were taken from the candidate pool of the first run on the first 8 BBC News 2025-01 articles that pass the length filter.",
+  "annotator": "Claude (assistant), judging from the source sentence of each mention; please review and correct.",
+  "dataset": "RealTimeData/bbc_news_alltime, config 2025-01",
+  "articles": {
+    "2025-01#0": {
+      "same": [],
+      "different": [["facebook", "instagram"]],
+      "ambiguous": []
+    },
+    "2025-01#1": {
+      "same": [["ambulance service", "welsh ambulance service"]],
+      "different": [["nhs 111 wales", "welsh ambulance service"]],
+      "ambiguous": [["nhs 111 wales", "nhs 111 wales symptom checkers"]]
+    },
+    "2025-01#2": {
+      "same": [
+        ["\"kek\"", "kek"],
+        ["\"maximus\"", "maximus"],
+        ["elon musk", "mr musk"],
+        ["pepe", "pepe the frog"],
+        ["\"maximus\"", "maximus decimus meridius"],
+        ["heroic character", "heroic character in film gladiator"],
+        ["maximus", "maximus decimus meridius"]
+      ],
+      "different": [
+        ["\"kek\"", "kekius"],
+        ["\"maximus\"", "kekius maximus"],
+        ["head of a frog", "pepe the frog"],
+        ["kekius maximus", "maximus"],
+        ["kekius maximus", "maximus decimus meridius"]
+      ],
+      "ambiguous": [["kekius", "kekius maximus"]]
+    },
+    "2025-01#3": {
+      "same": [
+        ["9,200 followers", "followers"],
+        ["eve party", "virtual party"]
+      ],
+      "different": [
+        ["many people", "people"],
+        ["party", "virtual party"],
+        ["eve", "eve party"],
+        ["eve party", "party"]
+      ],
+      "ambiguous": [
+        ["communities", "community"],
+        ["fantasy world of azeroth", "world of warcraft"]
+      ]
+    },
+    "2025-01#4": {
+      "same": [
+        ["robber", "thief"],
+        ["shafira", "shafira huang"]
+      ],
+      "different": [
+        ["gold, diamond and sapphire necklace", "pink sapphire earrings"],
+        ["10% of value of recovered jewellery", "graff 10.73-carat diamond ring"],
+        ["10% of value of recovered jewellery", "jewellery"],
+        ["bracelet", "jewellery"],
+        ["butterfly diamond rings", "gold, diamond and sapphire necklace"],
+        ["butterfly diamond rings", "graff 10.73-carat diamond ring"],
+        ["gold, diamond and sapphire necklace", "graff 10.73-carat diamond ring"],
+        ["gold, diamond and sapphire necklace", "jewellery"],
+        ["jewellery", "pink sapphire earrings"],
+        ["rewards", "£500,000 reward"]
+      ],
+      "ambiguous": []
+    },
+    "2025-01#5": {
+      "same": [
+        ["london mansion", "mansion"],
+        ["metropolitan police", "police"],
+        ["second floor window", "window"],
+        ["backpack", "bag"]
+      ],
+      "different": [
+        ["basement room", "guest room at back of property"],
+        ["guest room at back of property", "property developer husband"],
+        ["high risk part of house", "house above them"],
+        ["images of thief", "thief"]
+      ],
+      "ambiguous": []
+    },
+    "2025-01#6": {
+      "same": [
+        ["notre dame", "notre dame fighting irish"],
+        ["college football playoff quarter-finals", "quarter-finals"],
+        ["georgia bulldogs", "university of georgia"]
+      ],
+      "different": [
+        ["college football playoff quarter-finals", "last of four college football playoff quarter-finals"],
+        ["last of four college football playoff quarter-finals", "quarter-finals"]
+      ],
+      "ambiguous": []
+    },
+    "2025-01#8": {
+      "same": [],
+      "different": [],
+      "ambiguous": []
+    }
+  }
+}

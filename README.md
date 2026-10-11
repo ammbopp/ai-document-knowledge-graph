@@ -63,6 +63,9 @@ python -m evaluation all --source local           # everything on data/*.txt, no
 | `--source bbc\|local` | BBC News dataset (default) or `data/*.txt` (no reference summaries) |
 | `--month`, `--offset` | pick another slice of the dataset |
 | `--out DIR` | where to write results (default `evaluation/results/`, git-ignored) |
+| `--gold FILE`, `--llm-judge` | `resolution` only: hand-labelled pairs (default `evaluation/gold/resolution_pairs.json`); let the LLM judge unlabelled pairs (lenient) |
+
+Results of the last full run, with method notes and caveats: [evaluation/REPORT.md](evaluation/REPORT.md).
 
 Each run prints a Markdown report and saves it with the per-article rows as CSV. Articles are taken in a
 fixed order and the LLM runs at temperature 0, so runs are comparable. Judge calls that fail are excluded

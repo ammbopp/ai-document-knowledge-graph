@@ -4,7 +4,7 @@ import math
 from evaluation import __main__ as cli
 from evaluation.common import Report, fmt_stat, load_articles, mean_std, prf, ratio
 from evaluation.preprocessing import count_pronouns, preservation, pronoun_replacements, standard_chunks
-from evaluation.resolution import normalise_gold, pair_counts
+from evaluation.resolution import candidate_pool, lexical_overlap, pair_counts, pairs_of, score_against_judgements
 from evaluation.security import CANARY, build_payloads, hijacked, leaked, prompt_ngrams, score_output
 from evaluation.summarization import split_claims, ungrounded_terms
 from src import pipeline, preprocessing
@@ -31,13 +31,24 @@ def test_pairwise_cluster_counts():
     assert pair_counts([["a"], ["b"]], [["a"], ["b"]]) == (0, 0, 0)
 
 
-def test_gold_groups_are_validated():
-    groups = normalise_gold([["Trump", "trump", "Donald Trump"], ["Ghost"], ["Trump", "BBC"]],
-                            ["Trump", "Donald Trump", "BBC", "Putin"])
-    assert groups[0] == ["trump", "donald trump"]       # duplicates collapsed, case-insensitive
-    assert ["bbc"] in groups and ["putin"] in groups    # leftovers become singletons
-    assert not any("ghost" in g for g in groups)        # invented mentions are dropped
-    assert normalise_gold("garbage", ["A"]) == [["a"]]
+def test_pair_judgements_score_only_the_judged_pool():
+    predicted = pairs_of([["musk", "mr musk", "elon musk"], ["party", "virtual party"]])
+    same = {frozenset(("musk", "mr musk")), frozenset(("musk", "elon musk")), frozenset(("mr musk", "elon musk")),
+            frozenset(("welsh ambulance service", "ambulance service"))}
+    different = {frozenset(("party", "virtual party"))}
+    assert score_against_judgements(predicted, same, different) == (3, 1, 1)   # tp, fp (party), fn (ambulance)
+    assert score_against_judgements(set(), same, different) == (0, 0, 4)       # exact match merges nothing
+
+
+def test_candidate_pool_prefers_merged_pairs_and_adds_look_alikes():
+    mentions = ["Welsh Ambulance Service", "ambulance service", "Elon Musk", "Mr Musk", "BBC"]
+    merged = [{frozenset(("elon musk", "mr musk"))}]
+    pool = candidate_pool(mentions, merged)
+    assert pool[0] == frozenset(("elon musk", "mr musk"))                                  # predictions first
+    assert frozenset(("welsh ambulance service", "ambulance service")) in pool             # shared content words
+    assert not any("bbc" in pair for pair in pool)                                         # nothing resembles it
+    assert len(candidate_pool(mentions, merged, limit=1)) == 1
+    assert lexical_overlap("Mr Musk", "Elon Musk") and not lexical_overlap("the BBC", "the Guardian")
 
 
 def test_pronoun_replacements_come_from_a_token_diff():
@@ -108,3 +119,17 @@ def test_cli_registers_every_experiment_with_defaults():
         "system", "preprocessing", "extraction", "resolution", "summarization", "security"}
     args = cli.parse_args(["extraction", "--source", "local", "-n", "2"])
     assert (args.experiment, args.source, args.samples, args.windows) == ("extraction", "local", 2, 6)
+
+
+def test_resolution_gold_file_is_consistent():
+    from evaluation.resolution import load_gold, label_pairs
+
+    gold = load_gold()
+    assert gold, "no labels"
+    for aid, labels in gold.items():
+        everything = [p for kind in labels.values() for p in kind]
+        assert len(everything) == len(set(everything)), f"{aid}: a pair has two labels"
+        assert all(len(p) == 2 and all(m == m.lower() for m in p) for p in everything), f"{aid}: bad pair"
+    pool = [frozenset(("a", "b")), frozenset(("c", "d")), frozenset(("e", "f")), frozenset(("g", "h"))]
+    labels = {"same": {pool[0]}, "different": {pool[1]}, "ambiguous": {pool[2]}}
+    assert label_pairs(pool, labels) == ({pool[0]}, {pool[1]}, {pool[2]}, [pool[3]])

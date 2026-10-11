@@ -24,6 +24,9 @@ def parse_args(argv=None):
     parser.add_argument("--offset", type=int, default=0, help="skip this many articles (use a different slice)")
     parser.add_argument("--max-chars", type=int, default=0, help="system: truncate articles to this many characters")
     parser.add_argument("--windows", type=int, default=6, help="extraction: sliding windows per article")
+    parser.add_argument("--gold", help="resolution: hand-labelled pairs file (default: evaluation/gold/resolution_pairs.json)")
+    parser.add_argument("--llm-judge", action="store_true",
+                        help="resolution: let the LLM judge pairs that have no hand label (lenient, optimistic)")
     parser.add_argument("--out", help="directory for result files (default: evaluation/results)")
     return parser.parse_args(argv)
 

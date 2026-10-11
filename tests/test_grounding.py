@@ -49,3 +49,24 @@ def test_report_marks_flagged_terms_and_reports_clean_summaries():
     clean = AnalysisResult([], {}, "", "- Acme Corp pays 1,099 dollars.", None, {}, SOURCE)
     page = build_report(clean, "<html></html>", lang="en")
     assert "class='ok'" in page and "<mark" not in page.split("<section id=\"graph\"")[0]
+
+
+def test_labels_and_enumerators_are_not_facts():
+    summary = ("**Note:** The summary only includes information from the text.\n"
+               "Key takeaway: Acme Corp pays 1,099 dollars per seat.\n"
+               "Topic Shift 3 covers pricing. 2. Acme Corp announced it on Monday.\n"
+               "Costs rose 3.5% in 2024 and 12 offices opened.")
+    assert ungrounded_terms(summary, SOURCE) == ["12"]      # only a genuinely new number is left
+    assert ungrounded_terms("Moscow: approved the deal.", SOURCE) == ["Moscow"]   # a name before ':' is still checked
+
+
+def test_bold_labels_titles_plurals_spellings_and_number_words():
+    source = ("Izzett has raced nine or 10 buses. Local GP practices and the Latinisation of names were discussed. "
+              "Acme Corp pays 1,099 dollars.")
+    summary = ("**Fitness Innovation: Racing Against Buses**\n"
+               "• **Not for Beginners:** However, he raced 9-10 buses.\n"
+               "* Present: Overall, GPs discussed the Latinization of names.\n"
+               "- The deal was signed in 1925 by Acme Corp.")
+    assert ungrounded_terms(summary, source) == ["1925"]     # only the invented year survives
+    # a bold name that is part of the sentence is still checked
+    assert ungrounded_terms("**Moscow** welcomed the plan.", SOURCE) == ["Moscow"]
