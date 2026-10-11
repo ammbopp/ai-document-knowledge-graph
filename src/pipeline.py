@@ -10,6 +10,7 @@ from .config import LLM_WORKERS, MIN_CONFIDENCE, RESOLVER_THRESHOLD, WINDOW_OVER
 from .entity_resolution import EntityResolver, resolve_relations
 from .graph_builder import build_graph, visualize_graph
 from .graph_insight import analyze_graph
+from .grounding import ungrounded_terms
 from .i18n import graph_labels, t, type_names
 from .preprocessing import resolve_coreferences_with_llm
 from .relation_extraction_ai import extract_relations
@@ -27,6 +28,7 @@ class AnalysisResult:
     summary: str
     graph: object = None
     stats: dict = field(default_factory=dict)
+    text: str = ""   # the (possibly truncated) source the analysis ran on; used to check the summary
 
 
 def truncate_at_sentence(text, max_chars):
@@ -131,4 +133,5 @@ def analyze_document(text, nlp, embedder, *, min_confidence=MIN_CONFIDENCE, thre
         "elapsed": time.time() - start, "chunks": len(chunks), "sentences": len(sentences),
         "extracted": len(relations), "usable": len(usable), "truncated": truncated,
         "chars": len(text), "stage_seconds": stage_seconds,
-    })
+        "ungrounded": ungrounded_terms(summary, text),
+    }, text)

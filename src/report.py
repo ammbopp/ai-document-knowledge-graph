@@ -4,6 +4,7 @@ import html
 import re
 
 from .graph_view import NODE_TYPES, node_colors
+from .grounding import highlight, summary_flags
 from .i18n import t, type_names
 from .themes import accent, css_vars
 
@@ -32,6 +33,11 @@ section>h2{font-size:1.35rem;font-weight:500;margin:0 0 14px;letter-spacing:-.01
 .prose{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px 26px}
 .prose p{margin:.2rem 0 .8rem}.prose ul{margin:.2rem 0 .4rem;padding-left:1.3rem}.prose li{margin:.3rem 0}
 .note{font-size:.82rem;color:var(--muted);margin-top:10px}
+mark.ungrounded{background:color-mix(in srgb,var(--warm) 55%,transparent);color:inherit;border-bottom:2px solid var(--warm);
+  border-radius:4px;padding:0 .18em}
+.warn,.ok{border-radius:14px;padding:10px 14px;margin:0 0 14px;font-size:.9rem}
+.warn{background:color-mix(in srgb,var(--warm) 28%,var(--card));border:1px solid var(--warm)}
+.ok{background:var(--card);border:1px solid var(--line);color:var(--muted)}
 .legend{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 10px}
 .legend span{display:inline-flex;align-items:center;gap:.45rem;font-size:.82rem;padding:.2rem .75rem;border-radius:999px;
   background:var(--card);border:1px solid var(--line)}
@@ -184,7 +190,14 @@ def build_report(result, graph_page, *, name="document", lang="th", palette="lav
         for r in relations)
     head = "".join(f"<th>{_e(L(k))}</th>" for k in ("c_subject", "c_relation", "c_object", "c_confidence", "c_source"))
 
-    summary = summary_to_html(result.summary) if result.summary else f"<p>{_e(L('summary_none'))}</p>"
+    flagged = summary_flags(result) if result.summary else []
+    summary = (highlight(summary_to_html(result.summary), flagged, L("ungrounded_title"))
+               if result.summary else f"<p>{_e(L('summary_none'))}</p>")
+    if flagged:
+        shown = ", ".join(flagged[:10]) + (" …" if len(flagged) > 10 else "")
+        summary = f"<div class='warn'>{_e(L('ungrounded_warn', n=len(flagged), terms=shown))}</div>" + summary
+    elif result.summary and result.text:
+        summary = f"<div class='ok'>{_e(L('grounded_ok'))}</div>" + summary
     truncated = (f"<span class='pill'>{_e(L('truncated_note', chars=stats.get('chars', 0)))}</span>"
                  if stats.get("truncated") else "")
 

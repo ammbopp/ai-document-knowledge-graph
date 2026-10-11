@@ -152,3 +152,9 @@ section[data-testid="stMain"] { padding: 0 1.4rem 0 .6rem; }
 .stButton > button[kind="primary"]:disabled { background: var(--card); border-color: var(--line); opacity: 1; }
 .stButton > button[kind="primary"]:disabled p, .stButton > button[kind="primary"]:disabled span { color: var(--muted); }
 section[data-testid="stSidebar"] > div:first-child { width: calc(100% - 2.4rem); }
+
+/* ---------- Summary: terms that are not in the source ---------- */
+mark.ungrounded {
+  background: color-mix(in srgb, var(--warm) 55%, transparent); color: inherit;
+  border-bottom: 2px solid var(--warm); border-radius: 4px; padding: 0 .18em;
+}

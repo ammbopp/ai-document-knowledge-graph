@@ -2,11 +2,11 @@
 import re
 
 from src.config import SUMMARY_TEXT_CHARS
+from src.grounding import ungrounded_terms  # noqa: F401  (shared with the app; re-exported for tests)
 from src.llm import generate
 from src.pipeline import analyze_document
 
-from .common import (Report, as_bool, fmt_stat, get_embedder, get_nlp, judge_json, load_articles, md_table, ratio,
-                     words)
+from .common import Report, as_bool, fmt_stat, get_embedder, get_nlp, judge_json, load_articles, md_table, ratio
 
 NAME = "summarization"
 DESCRIPTION = "Text-only vs graph-augmented summaries: ROUGE, claim-level faithfulness, ungrounded terms"
@@ -30,10 +30,6 @@ Claim: "{claim}"
 Is the claim fully supported by the article (no contradiction, no added facts, no changed numbers or names)?
 Answer with JSON: {{"supported": true}} or {{"supported": false}}"""
 
-_CAPITALISED = re.compile(r"\b[A-Z][a-z]+\b")
-_NUMBER = re.compile(r"\b\d[\d,.]*\b")
-
-
 # ---------- pure helpers (unit-tested) ----------
 def split_claims(summary, min_words=4):
     """One claim per bullet / sentence, with list markers and bold stripped."""
@@ -44,35 +40,6 @@ def split_claims(summary, min_words=4):
             if len(part.split()) >= min_words and not part.rstrip().endswith(":"):
                 claims.append(part.strip())
     return claims
-
-
-def _without_headings(summary):
-    """Drop section titles ("**Key Points:**", "## Context") and strip list markers."""
-    lines = []
-    for line in summary.splitlines():
-        is_bullet = bool(re.match(r"\s*(?:[-*•]|\d+[.)])\s", line))
-        text = re.sub(r"^\s*(?:#+|[-*•]|\d+[.)])\s*", "", line).replace("**", "").strip()
-        if not text or text.endswith(":") or (not is_bullet and len(text.split()) <= 4 and not text.endswith((".", "!", "?"))):
-            continue
-        lines.append(text)
-    return "\n".join(lines)
-
-
-def ungrounded_terms(summary, source):
-    """
-    Numbers and capitalised words in the summary that never occur in the source (hallucination proxy).
-    Section titles and the first word of each sentence are ignored; derived words ("American") can still
-    show up, so read it as a relative signal.
-    """
-    summary = _without_headings(summary)
-    known = {w.lower() for w in words(source)} | {n.strip(".,") for n in _NUMBER.findall(source)}
-    sentence_starts = {m.group(1).lower() for m in re.finditer(r"(?:^|[.!?]\s+)([A-Z][a-z]+)", summary, re.M)}
-    missing = []
-    for term in _CAPITALISED.findall(summary):
-        if term.lower() not in known and term.lower() not in sentence_starts:
-            missing.append(term)
-    missing += [n.strip(".,") for n in _NUMBER.findall(summary) if n.strip(".,") not in known]
-    return sorted(set(missing))
 
 
 def faithfulness(summary, source):
@@ -132,7 +99,7 @@ def run(args):
          "ROUGE-1 F1", "ROUGE-2 F1", "ROUGE-L F1"], table))
     report.notes += [
         "Faithfulness is claim-level: each bullet/sentence is judged separately against the article.",
-        "'Ungrounded terms' are numbers and capitalised words in the summary that never appear in the article "
+        "'Ungrounded terms' are numbers and proper nouns in the summary that never appear in the article "
         "(deterministic, no LLM) -- a cheap hallucination signal that also catches invented dates.",
         "ROUGE is computed against the BBC description (one sentence), so absolute values are low; compare methods only.",
         "The graph-augmented summary comes from the full pipeline run (graph built from the same article).",

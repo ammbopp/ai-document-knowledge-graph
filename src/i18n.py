@@ -116,6 +116,10 @@ STRINGS = {
         "summary_note": "สรุปโดย LLM จากเนื้อหาต้นฉบับร่วมกับกราฟความรู้ เพื่อลดการบิดเบือน แต่ไม่รับประกันว่าถูกต้อง 100% "
                         "ควรตรวจสอบกับต้นฉบับ",
         "dl_summary": "ดาวน์โหลดสรุป (.md)",
+        "ungrounded_warn": "พบ {n} คำในสรุปที่ไม่ปรากฏในต้นฉบับ (ไฮไลต์ไว้): {terms} — อาจเป็นข้อมูลที่ LLM เพิ่มเอง "
+                           "โปรดตรวจกับต้นฉบับก่อนนำไปใช้ (บางคำอาจเป็นเพียงรูปที่ดัดแปลงมา)",
+        "ungrounded_title": "ไม่พบในต้นฉบับ",
+        "grounded_ok": "ตัวเลขและชื่อเฉพาะทุกคำในสรุปพบในต้นฉบับ (ตรวจที่ตัวคำ ไม่ได้รับประกันว่าความหมายถูกต้อง)",
         # --- units / types ---
         "u_min": "นาที", "u_sec": "วินาที",
         "Person": "บุคคล", "Organization": "องค์กร", "Location": "สถานที่", "Time": "เวลา", "Work": "ผลงาน",
@@ -238,6 +242,12 @@ STRINGS = {
         "summary_note": "Written by the LLM from the source text and the knowledge graph to limit distortion, "
                         "but not guaranteed to be 100% accurate. Check it against the original.",
         "dl_summary": "Download summary (.md)",
+        "ungrounded_warn": "{n} term(s) in the summary do not appear in the source (highlighted): {terms} — the LLM may "
+                           "have added them. Check against the source before relying on it (some may just be "
+                           "reworded forms).",
+        "ungrounded_title": "Not found in the source",
+        "grounded_ok": "Every number and proper name in the summary appears in the source (a word-level check, "
+                       "not a guarantee that the meaning is right).",
         "u_min": "min", "u_sec": "s",
         "Person": "Person", "Organization": "Organization", "Location": "Location", "Time": "Time", "Work": "Work",
         "Entity": "Other", "Topic": "Main topic (hub)",

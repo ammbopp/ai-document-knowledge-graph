@@ -21,9 +21,25 @@ entity resolution (per document) → MultiDiGraph → insights → PyVis visuali
 Settings can be overridden with env vars: `OLLAMA_URL`, `LLM_MODEL`, `LLM_TIMEOUT`, `LLM_NUM_CTX`
 (see `src/config.py`).
 
+## Project layout
+```
+app.py              Streamlit entry point (wires the UI parts together)
+ui/                 Web UI by screen area: sidebar, composer (input), analysis (run + progress), results, common
+src/                Pipeline: preprocessing, relation extraction, entity resolution, graph, insights, summary,
+                    plus graph_view / graph_layout / report (HTML output) and i18n / themes
+assets/style.css    Web app styles (colour tokens come from src/themes.py)
+assets/graph/       Interactive graph viewer: viewer.css and viewer.js (injected into the PyVis page)
+evaluation/         Benchmarks: python -m evaluation <experiment>
+tests/              pytest suite (no Ollama needed)
+data/               Sample articles
+```
+
 ## Limitations
 - English only (the UI is Thai, but extraction models are English).
 - Output quality depends on the LLM; the verifier reduces but does not eliminate wrong triples.
+- The summary is written by the LLM and can add facts. Numbers and proper nouns that never appear in the
+  source are highlighted (and listed in a warning) in the app and in the exported report; this word-level
+  check (`src/grounding.py`) catches invented dates, amounts and names, not wrong wording.
 - Several LLM calls per chunk and per triple make long documents slow.
 
 ## Evaluation
