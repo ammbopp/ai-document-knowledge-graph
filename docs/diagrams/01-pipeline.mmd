@@ -1,0 +1,61 @@
+flowchart TD
+    IN["<b>Input document</b><br/>เอกสารนำเข้า: paste text · .txt upload · news URL"]
+    URL["<b>URL fetch</b> (SSRF guard)<br/>public IP only · ≤ 2 MB · ≤ 3 redirects<br/>HTML → plain text"]
+    CUT["<b>Truncate</b> at sentence boundary<br/>ถ้าเกิน max_chars (default 6,000)"]
+
+    subgraph PRE["① Preprocessing"]
+        COREF["<b>Coreference resolution</b> (LLM)<br/>แทน he/she/they ด้วยชื่อจริง<br/>chunk 1,500 chars · parallel"]
+        GUARD{"<b>Sanity check</b><br/>prompt echo หรือ<br/>length ratio นอก 0.7–1.4×?"}
+        KEEP["<b>Fallback</b><br/>ใช้ข้อความเดิมของ chunk นั้น"]
+        SPLIT["<b>Sentence segmentation</b><br/>(spaCy)"]
+        WIN["<b>Sliding window</b><br/>3 sentences · overlap 1"]
+    end
+
+    subgraph EXT["② Relation extraction (see diagram 02)"]
+        PAR["<b>Triple extraction</b> (LLM) per window<br/>subject | predicate | object<br/>parallel · max 4 workers (LLM_WORKERS)"]
+        CONF{"<b>Confidence filter</b><br/>score ≥ min_confidence (0.7)?"}
+    end
+
+    RES["③ <b>Entity resolution</b><br/>merge mentions ที่หมายถึงสิ่งเดียวกัน<br/>rules + embedding similarity (see diagram 03)"]
+
+    subgraph GR["④ Graph construction & insights"]
+        BUILD["<b>Build MultiDiGraph</b> (networkx)<br/>hub / main topic = node ที่มี degree สูงสุด"]
+        VIRT["<b>Connect components</b><br/>ต่อกลุ่มที่ขาดกันเข้า hub<br/>ด้วย virtual edge (เส้นประ)"]
+        INS["<b>Graph analytics</b> (ไม่นับ virtual edge)<br/>density · communities · centrality<br/>bridge nodes · frequent predicates"]
+    end
+
+    subgraph SUM["⑤ Summarization"]
+        LLMS["<b>Graph-augmented summary</b> (LLM)<br/>source text ≤ 8,000 chars<br/>+ relations จัดกลุ่มตาม sentence"]
+        GROUND["<b>Grounding check</b><br/>numbers / proper nouns ที่ไม่มีใน source<br/>→ highlight + warning"]
+    end
+
+    OUT["<b>AnalysisResult</b><br/>relations · insights · graph · summary · text · stats"]
+
+    subgraph SHOW["⑥ Presentation & export"]
+        TABS["<b>Streamlit app</b> 4 tabs<br/>Graph · Relations · Insights · Summary"]
+        REP["<b>HTML report</b><br/>self-contained single file"]
+        EXP["<b>Export</b><br/>CSV · JSON · Markdown · graph HTML"]
+    end
+
+    IN --> CUT
+    IN -.->|"if URL"| URL --> CUT
+    CUT --> COREF --> GUARD
+    GUARD -->|"yes"| KEEP --> SPLIT
+    GUARD -->|"no"| SPLIT
+    SPLIT --> WIN --> PAR --> CONF
+    CONF -->|"pass"| RES
+    CONF -->|"fail"| DROP["<b>Drop</b><br/>ทิ้ง"]
+    RES --> BUILD --> VIRT --> INS --> OUT
+    RES --> LLMS --> GROUND --> OUT
+    OUT --> TABS
+    OUT --> REP
+    OUT --> EXP
+
+    classDef llm fill:#e8e4ff,stroke:#6b63d9,color:#1d1b3a;
+    classDef rule fill:#e6f6f1,stroke:#1f9a7a,color:#0f3a2e;
+    classDef io fill:#fff1e2,stroke:#e4693a,color:#40200e;
+    classDef stop fill:#f3f3f6,stroke:#9aa0b4,color:#4a4f63;
+    class COREF,PAR,LLMS llm;
+    class SPLIT,WIN,CUT,URL,GUARD,KEEP,CONF,BUILD,VIRT,INS,GROUND,RES rule;
+    class IN,OUT,TABS,REP,EXP io;
+    class DROP stop;

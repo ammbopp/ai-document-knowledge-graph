@@ -1,0 +1,75 @@
+flowchart LR
+    USER(["ผู้ใช้"])
+    CLI["src/main.py<br/>บรรทัดคำสั่ง"]
+    EVAL["evaluation/<br/>python -m evaluation"]
+
+    subgraph WEB["เว็บแอป (Streamlit)"]
+        APP["app.py"]
+        SIDE["ui/sidebar.py<br/>ภาษา · Ollama · ธีม · ตั้งค่าขั้นสูง"]
+        COMP["ui/composer.py<br/>วาง · อัปโหลด · ลิงก์"]
+        ANA["ui/analysis.py<br/>รัน + ความคืบหน้า"]
+        RESU["ui/results.py<br/>4 แท็บ + ดาวน์โหลด"]
+        COMMON["ui/common.py<br/>สถานะ · แคชโมเดล"]
+    end
+
+    subgraph CORE["แกนระบบ src/"]
+        PIPE["pipeline.py<br/>analyze_document()"]
+        PRE["preprocessing.py<br/>แก้สรรพนาม"]
+        TXT["text_utils.py<br/>แบ่งประโยค · หน้าต่าง"]
+        EXT["relation_extraction_ai.py<br/>สกัด + กรอง + ตรวจ"]
+        ER["entity_resolution.py<br/>รวมเอนทิตี"]
+        GB["graph_builder.py"]
+        GI["graph_insight.py"]
+        SUMM["summarization.py"]
+        GRD["grounding.py<br/>ตรวจคำที่ไม่มีในต้นฉบับ"]
+        WF["web_fetch.py<br/>ดึงข่าวอย่างปลอดภัย"]
+        LLM["llm.py<br/>ทางออกเดียวไป Ollama"]
+    end
+
+    subgraph OUTP["ผลลัพธ์"]
+        GV["graph_view.py + graph_layout.py<br/>assets/graph/viewer.css · viewer.js"]
+        REPT["report.py<br/>รายงาน HTML"]
+        I18N["i18n.py · themes.py"]
+    end
+
+    OLL[("Ollama<br/>llama3<br/>localhost:11434")]
+    MODELS[("spaCy en_core_web_sm<br/>MiniLM embeddings")]
+
+    USER --> APP
+    USER --> CLI
+    APP --> SIDE
+    APP --> COMP
+    APP --> ANA
+    APP --> RESU
+    SIDE --> COMMON
+    COMP --> WF
+    ANA --> PIPE
+    CLI --> PIPE
+    EVAL --> PIPE
+
+    PIPE --> PRE --> LLM
+    PIPE --> TXT
+    PIPE --> EXT --> LLM
+    PIPE --> ER
+    PIPE --> GB --> GI
+    PIPE --> SUMM --> LLM
+    PIPE --> GRD
+    LLM --> OLL
+    EXT --> MODELS
+    ER --> MODELS
+
+    PIPE --> GV
+    RESU --> GV
+    RESU --> REPT
+    REPT --> GV
+    RESU --> I18N
+    GV --> I18N
+
+    classDef ui fill:#fff1e2,stroke:#e4693a,color:#40200e;
+    classDef core fill:#e6f6f1,stroke:#1f9a7a,color:#0f3a2e;
+    classDef ext fill:#e8e4ff,stroke:#6b63d9,color:#1d1b3a;
+    classDef out fill:#fdeaf2,stroke:#cf4f86,color:#4a1530;
+    class APP,SIDE,COMP,ANA,RESU,COMMON,CLI,EVAL ui;
+    class PIPE,PRE,TXT,EXT,ER,GB,GI,SUMM,GRD,WF,LLM core;
+    class OLL,MODELS ext;
+    class GV,REPT,I18N out;

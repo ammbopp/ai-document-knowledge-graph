@@ -21,6 +21,11 @@ entity resolution (per document) → MultiDiGraph → insights → PyVis visuali
 Settings can be overridden with env vars: `OLLAMA_URL`, `LLM_MODEL`, `LLM_TIMEOUT`, `LLM_NUM_CTX`
 (see `src/config.py`).
 
+## Documentation
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Thai) explains how the whole system works, with five diagrams
+(pipeline, extraction gates, entity resolution, module map, run sequence) as Mermaid and as SVG/PNG in
+[docs/diagrams/](docs/diagrams/). Benchmark results: [evaluation/REPORT.md](evaluation/REPORT.md).
+
 ## Project layout
 ```
 app.py              Streamlit entry point (wires the UI parts together)
@@ -29,7 +34,8 @@ src/                Pipeline: preprocessing, relation extraction, entity resolut
                     plus graph_view / graph_layout / report (HTML output) and i18n / themes
 assets/style.css    Web app styles (colour tokens come from src/themes.py)
 assets/graph/       Interactive graph viewer: viewer.css and viewer.js (injected into the PyVis page)
-evaluation/         Benchmarks: python -m evaluation <experiment>
+docs/               Architecture write-up (ARCHITECTURE.md) and diagrams (diagrams/*.mmd, .svg, .png)
+evaluation/         Benchmarks: python -m evaluation <experiment>, REPORT.md, gold/ (hand-labelled pairs)
 tests/              pytest suite (no Ollama needed)
 data/               Sample articles
 ```

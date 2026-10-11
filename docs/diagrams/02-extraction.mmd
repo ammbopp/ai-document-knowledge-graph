@@ -1,0 +1,51 @@
+flowchart TD
+    W["หน้าต่างข้อความ 1 หน้าต่าง<br/>(3 ประโยค)"]
+    ASK["LLM ตอบเป็น<br/>ประธาน | กริยา | กรรม ###"]
+    PARSE["แยกเป็นสามส่วน<br/>ต้องได้ครบ 3 ช่อง"]
+
+    subgraph STRUCT["ตัวกรองโครงสร้าง — ไม่ใช้ LLM (structure_triples)"]
+        CLEAN["ลบ a/the และ 's ออกจากชื่อ"]
+        PASSIVE["passive → active<br/>contacted by → สลับประธานกับกรรม"]
+        E{"เอนทิตีถูกต้อง?<br/>มีคำนาม · ไม่มีกริยาช่วย/ประโยคย่อย<br/>ไม่ลงท้ายด้วยบุพบท · ไม่ใช่สรรพนาม"}
+        R{"กริยาถูกต้อง?<br/>≤ 5 คำ · ไม่ใช่ said/told<br/>ไม่ใช่ passive ที่ไม่มี by"}
+        SAME{"ประธาน ≠ กรรม"}
+        G{"ทั้งสองอยู่ในประโยคเดียวกัน<br/>ของหน้าต่าง? (คำตรงไม่ต่ำกว่า 50%)"}
+    end
+
+    subgraph VERIFY["ตัวตรวจด้วย LLM (evaluate_triplet_cloze)"]
+        SC{"คะแนน 0–10<br/>≥ 6 ?"}
+        DIR{"ถามว่าใครเป็นประธาน<br/>สองรอบสลับตำแหน่ง<br/>ตอบกลับทิศสม่ำเสมอ?"}
+    end
+
+    subgraph FIN["ประกอบผลลัพธ์"]
+        NER["ระบุชนิดโหนดด้วย NER<br/>ORG · PERSON · GPE · DATE · WORK_OF_ART<br/>ที่เหลือ = อื่นๆ"]
+        DATE["วันที่ท้ายชื่อ → แยกเป็นโหนดเวลา<br/>force | occurs on | Tuesday"]
+        DEDUP["ตัดซ้ำด้วยรากคำกริยา<br/>will be causing = cause"]
+    end
+
+    OUT["ความสัมพันธ์ที่ผ่านทุกด่าน<br/>พร้อมประโยคต้นฉบับและความมั่นใจ"]
+    X["ทิ้งความสัมพันธ์นี้"]
+
+    W --> ASK --> PARSE --> CLEAN --> PASSIVE --> E
+    E -->|"ผ่าน"| R
+    R -->|"ผ่าน"| SAME
+    SAME -->|"ผ่าน"| G
+    G -->|"ผ่าน"| SC
+    SC -->|"ผ่าน"| DIR
+    DIR -->|"ไม่กลับทิศ"| NER --> DATE --> DEDUP --> OUT
+
+    E -->|"ไม่ผ่าน"| X
+    R -->|"ไม่ผ่าน"| X
+    SAME -->|"ซ้ำ"| X
+    G -->|"ไม่ผ่าน"| X
+    SC -->|"ต่ำ หรือ LLM ล้มเหลว"| X
+    DIR -->|"กลับทิศ"| X
+
+    classDef llm fill:#e8e4ff,stroke:#6b63d9,color:#1d1b3a;
+    classDef rule fill:#e6f6f1,stroke:#1f9a7a,color:#0f3a2e;
+    classDef io fill:#fff1e2,stroke:#e4693a,color:#40200e;
+    classDef stop fill:#f3f3f6,stroke:#9aa0b4,color:#4a4f63;
+    class ASK,SC,DIR llm;
+    class PARSE,CLEAN,PASSIVE,E,R,SAME,G,NER,DATE,DEDUP rule;
+    class W,OUT io;
+    class X stop;
